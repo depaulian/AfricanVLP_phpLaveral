@@ -114,20 +114,6 @@ jobs:
               sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env
               sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env
               
-              # Mail Configuration
-              sed -i "s|^MAIL_MAILER=.*|MAIL_MAILER=${MAIL_MAILER:-smtp}|" .env
-              sed -i "s|^MAIL_HOST=.*|MAIL_HOST=${MAIL_HOST}|" .env
-              sed -i "s|^MAIL_PORT=.*|MAIL_PORT=${MAIL_PORT:-587}|" .env
-              sed -i "s|^MAIL_USERNAME=.*|MAIL_USERNAME=${MAIL_USERNAME}|" .env
-              sed -i "s|^MAIL_PASSWORD=.*|MAIL_PASSWORD=\"${MAIL_PASSWORD}\"|" .env
-              sed -i "s|^MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}|" .env
-              
-              # Cloudinary Configuration
-              sed -i "s|^CLOUDINARY_CLOUD_NAME=.*|CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}|" .env
-              sed -i "s|^CLOUDINARY_API_KEY=.*|CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}|" .env
-              sed -i "s|^CLOUDINARY_API_SECRET=.*|CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}|" .env
-              sed -i "s|^CLOUDINARY_UPLOAD_PRESET=.*|CLOUDINARY_UPLOAD_PRESET=${CLOUDINARY_UPLOAD_PRESET}|" .env
-
               cp .env.example .env
         - run:
             name: "Login to AWS ECR"
@@ -176,20 +162,6 @@ jobs:
             sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env
             sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env
             
-            # Mail Configuration
-            sed -i "s|^MAIL_MAILER=.*|MAIL_MAILER=${MAIL_MAILER:-smtp}|" .env
-            sed -i "s|^MAIL_HOST=.*|MAIL_HOST=${MAIL_HOST}|" .env
-            sed -i "s|^MAIL_PORT=.*|MAIL_PORT=${MAIL_PORT:-587}|" .env
-            sed -i "s|^MAIL_USERNAME=.*|MAIL_USERNAME=${MAIL_USERNAME}|" .env
-            sed -i "s|^MAIL_PASSWORD=.*|MAIL_PASSWORD=\"${MAIL_PASSWORD}\"|" .env
-            sed -i "s|^MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}|" .env
-            
-            # Cloudinary Configuration
-            sed -i "s|^CLOUDINARY_CLOUD_NAME=.*|CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}|" .env
-            sed -i "s|^CLOUDINARY_API_KEY=.*|CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}|" .env
-            sed -i "s|^CLOUDINARY_API_SECRET=.*|CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}|" .env
-            sed -i "s|^CLOUDINARY_UPLOAD_PRESET=.*|CLOUDINARY_UPLOAD_PRESET=${CLOUDINARY_UPLOAD_PRESET}|" .env
-
             cp .env.example .env
       - run:
           name: "Login to AWS ECR"
