@@ -98,21 +98,21 @@ jobs:
             command: |
               # Only update the specific variables that need dynamic configuration
               # App Configuration
-              sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env
-              sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env
-              sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8081|" .env
-              sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8081|" .env
+              sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env.example
+              sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env.example
+              sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8081|" .env.example
+              sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8081|" .env.example
               
               # Database Configuration
               sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_STAGING}|" .env
-              sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_STAGING}|" .env
-              sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_STAGING}|" .env
-              sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_STAGING}\"|" .env
+              sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_STAGING}|" .env.example
+              sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_STAGING}|" .env.example
+              sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_STAGING}\"|" .env.example
               
               # Redis Configuration
-              sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env
-              sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env
-              sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env
+              sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env.example
+              sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env.example
+              sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env.example
               
               cp .env.example .env
         - run:
@@ -146,21 +146,21 @@ jobs:
           command: |
             # Only update the specific variables that need dynamic configuration
              # App Configuration
-            sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env
-            sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env
-            sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8080|" .env
-            sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8080|" .env
+            sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env.example
+            sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env.example
+            sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8080|" .env.example
+            sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8080|" .env.example
             
             # Database Configuration
-            sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_PROD}|" .env
-            sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_PROD}|" .env
-            sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_PROD}|" .env
-            sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_PROD}\"|" .env
+            sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_PROD}|" .env.example
+            sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_PROD}|" .env.example
+            sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_PROD}|" .env.example
+            sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_PROD}\"|" .env.example
             
             # Redis Configuration
-            sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env
-            sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env
-            sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env
+            sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env.example
+            sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env.example
+            sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env.example
             
             cp .env.example .env
       - run:
