@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  # africanvlpadmin Application Service
+  africanvlpadmin:
+    container_name: africanvlpadmin
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ENV_IS_DEV: 'true'
+    depends_on:
+      - africanvlp-db
+      - africanvlp-redis
+    volumes:
+      - ./:/var/www/html/public
+    ports:
+      - '8085:80'
+      - '5173:5173'
+    environment:
+      WEB_DOCUMENT_ROOT: /var/www/html/public/public
+      DB_HOST: africanvlp-db
+      DB_DATABASE: africanvlp_shared
+      DB_USERNAME: africanvlp_user
+      DB_PASSWORD: secret
+      REDIS_HOST: africanvlp-redis
+      REDIS_PORT: 6379
+    networks:
+      - africanvlp-network
+    restart: on-failure
+
+  # Shared MySQL Database Service
+  africanvlp-db:
+    image: mysql:8.0
+    container_name: africanvlp-db
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: africanvlp_shared
+      MYSQL_USER: africanvlp_user
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: secret
+    volumes:
+      - africanvlp-db-data:/var/lib/mysql
+    ports:
+      - '3308:3306'
+    networks:
+      - africanvlp-network
+    restart: unless-stopped
+
+  # Shared Redis Service
+  africanvlp-redis:
+    image: redis:alpine
+    container_name: africanvlp-redis
+    networks:
+      - africanvlp-network
+    ports:
+      - '6380:6379'
+    restart: on-failure
+
+networks:
+  africanvlp-network:
+    driver: bridge
+    name: africanvlp-network
+
+volumes:
+  africanvlp-db-data:
+    driver: local
+    name: africanvlp-db-data

@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  # africanvlpclient Application Service
+  africanvlpclient:
+    container_name: africanvlpclient
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        ENV_IS_DEV: 'true'
+    volumes:
+      - ./:/var/www/html/public
+    ports:
+      - '8086:80'  # Changed to avoid conflict with admin
+      - '5174:5173' # Changed to avoid conflict with admin
+    environment:
+      WEB_DOCUMENT_ROOT: /var/www/html/public/public
+      DB_HOST: africanvlp-db
+      DB_DATABASE: africanvlp_shared
+      DB_USERNAME: africanvlp_user
+      DB_PASSWORD: secret
+      REDIS_HOST: africanvlp-redis
+      REDIS_PORT: 6379
+    networks:
+      - africanvlp-network
+    restart: on-failure
+
+networks:
+  africanvlp-network:
+    external: true
+    name: africanvlp-network
+
+volumes:
+  africanvlp-db-data:
+    external: true
+    name: africanvlp-db-data

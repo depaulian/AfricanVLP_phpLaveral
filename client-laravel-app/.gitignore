@@ -1,0 +1,56 @@
+# Dependencies
+/vendor/
+/node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment files
+.env
+.env.backup
+.env.production
+
+# Laravel specific
+/bootstrap/cache/*.php
+/bootstrap/cache/packages.php
+/bootstrap/cache/services.php
+/storage/*.key
+/storage/app/*
+!/storage/app/.gitkeep
+!/storage/app/public/
+/storage/framework/cache/*
+!/storage/framework/cache/.gitkeep
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitkeep
+/storage/framework/testing/*
+!/storage/framework/testing/.gitkeep
+/storage/framework/views/*
+!/storage/framework/views/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+
+# Public uploads
+/public/storage
+/public/uploads/
+/public/hot
+
+# Testing
+/coverage/
+.phpunit.result.cache
+.phpunit.cache
+
+# Build files
+/public/mix-manifest.json
+/public/build/
+/public/css/
+/public/js/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Auth & Session Keys
+auth.json
+
+# Database
+*.sqlite
+*.sqlite3

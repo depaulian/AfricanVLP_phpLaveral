@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="12px" height="8px" viewBox="0 0 12 8" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Icon</title>
+    <defs>
+        <path d="M4.65625,8 L4.65625,6.65625 L7.34375,6.65625 L7.34375,8 L4.65625,8 Z M0,0 L12,0 L12,1.34375 L0,1.34375 L0,0 Z M2,4.65625 L2,3.34375 L10,3.34375 L10,4.65625 L2,4.65625 Z" id="path-1"></path>
+    </defs>
+    <g id="AU-Users" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="Report---Volunteers" transform="translate(-1164.000000, -102.000000)">
+            <g id="Print" transform="translate(1098.000000, 90.000000)">
+                <g id="Group" transform="translate(66.000000, 12.000000)">
+                    <mask id="mask-2" fill="white">
+                        <use xlink:href="#path-1"></use>
+                    </mask>
+                    <use id="Mask" fill="#333333" xlink:href="#path-1"></use>
+                    <g mask="url(#mask-2)">
+                        <g transform="translate(-30.000000, -32.000000)">
+                            <rect id="Icon-Shade" fill="#9F2241" x="0" y="0" width="72" height="72"></rect>
+                        </g>
+                    </g>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

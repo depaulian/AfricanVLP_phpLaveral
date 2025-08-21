@@ -1,0 +1,256 @@
+@extends('layouts.client')
+
+@section('title', 'Edit Thread - ' . $thread->title)
+
+@section('content')
+<div class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8">
+            <nav class="text-sm text-gray-500 mb-4">
+                <a href="{{ route('forums.index') }}" class="hover:text-blue-600">Forums</a>
+                <span class="mx-2">/</span>
+                <a href="{{ route('forums.show', $forum) }}" class="hover:text-blue-600">{{ $forum->name }}</a>
+                <span class="mx-2">/</span>
+                <a href="{{ route('forums.threads.show', [$forum, $thread]) }}" class="hover:text-blue-600">{{ Str::limit($thread->title, 30) }}</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-900">Edit</span>
+            </nav>
+            
+            <h1 class="text-3xl font-bold text-gray-900">Edit Thread</h1>
+            <p class="text-gray-600 mt-2">Make changes to your thread</p>
+        </div>
+
+        <!-- Form -->
+        <div class="bg-white rounded-lg shadow-md">
+            <div class="p-6">
+                <form action="{{ route('forums.threads.update', [$forum, $thread]) }}" method="POST">
+                    @csrf
+                    @method('PUT')
+                    
+                    <!-- Thread Title -->
+                    <div class="mb-6">
+                        <label for="title" class="block text-sm font-medium text-gray-700 mb-2">
+                            Thread Title <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="title" id="title" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 @error('title') border-red-500 @enderror" 
+                               placeholder="Enter a descriptive title for your thread"
+                               value="{{ old('title', $thread->title) }}" required>
+                        @error('title')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                    
+                    <!-- Thread Content -->
+                    <div class="mb-6">
+                        <label for="content" class="block text-sm font-medium text-gray-700 mb-2">
+                            Content <span class="text-red-500">*</span>
+                        </label>
+                        <textarea name="content" id="content" rows="12" 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 @error('content') border-red-500 @enderror" 
+                                  placeholder="Write your thread content here..."
+                                  required>{{ old('content', $thread->content) }}</textarea>
+                        @error('content')
+                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                        <p class="mt-1 text-sm text-gray-500">Minimum 10 characters. You can use line breaks for formatting.</p>
+                    </div>
+                    
+                    <!-- Edit Notice -->
+                    <div class="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <h3 class="text-sm font-medium text-yellow-900 mb-2">
+                            <i class="fas fa-exclamation-triangle mr-1"></i>Edit Notice
+                        </h3>
+                        <ul class="text-sm text-yellow-800 space-y-1">
+                            <li>• Your thread will show as "edited" with a timestamp</li>
+                            <li>• Major changes may affect ongoing discussions</li>
+                            <li>• Consider posting a follow-up instead of major edits</li>
+                            <li>• Editing is limited to {{ auth()->user()->hasRole('admin') || $forum->canModerate(auth()->user()) ? 'unlimited time' : '24 hours after creation' }}</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Form Actions -->
+                    <div class="flex items-center justify-between pt-6 border-t border-gray-200">
+                        <a href="{{ route('forums.threads.show', [$forum, $thread]) }}" 
+                           class="text-gray-600 hover:text-gray-800 px-4 py-2 transition duration-200">
+                            <i class="fas fa-arrow-left mr-2"></i>Cancel
+                        </a>
+                        
+                        <div class="flex space-x-3">
+                            <button type="button" onclick="previewChanges()" 
+                                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg transition duration-200">
+                                <i class="fas fa-eye mr-2"></i>Preview
+                            </button>
+                            
+                            <button type="submit" 
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition duration-200">
+                                <i class="fas fa-save mr-2"></i>Save Changes
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Thread Info -->
+        <div class="mt-8 bg-gray-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Thread Information</h3>
+            
+            <div class="grid md:grid-cols-2 gap-6 text-sm text-gray-700">
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Thread Details</h4>
+                    <ul class="space-y-1">
+                        <li><strong>Created:</strong> {{ $thread->created_at->format('M j, Y \a\t g:i A') }}</li>
+                        <li><strong>Views:</strong> {{ $thread->view_count }}</li>
+                        <li><strong>Replies:</strong> {{ $thread->reply_count }}</li>
+                        @if($thread->last_reply_at)
+                            <li><strong>Last Reply:</strong> {{ $thread->last_reply_at->diffForHumans() }}</li>
+                        @endif
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-medium text-gray-900 mb-2">Status</h4>
+                    <div class="flex flex-wrap gap-2">
+                        @if($thread->is_pinned)
+                            <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                <i class="fas fa-thumbtack mr-1"></i>Pinned
+                            </span>
+                        @endif
+                        
+                        @if($thread->is_locked)
+                            <span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
+                                <i class="fas fa-lock mr-1"></i>Locked
+                            </span>
+                        @endif
+                        
+                        @if($thread->hasSolution())
+                            <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                <i class="fas fa-check-circle mr-1"></i>Solved
+                            </span>
+                        @endif
+                        
+                        @if(!$thread->is_pinned && !$thread->is_locked && !$thread->hasSolution())
+                            <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                                <i class="fas fa-comments mr-1"></i>Active
+                            </span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div id="previewModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-screen overflow-y-auto">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-lg font-semibold text-gray-900">Preview Changes</h3>
+                    <button onclick="closePreview()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="p-6">
+                <div class="mb-4">
+                    <h2 id="previewTitle" class="text-2xl font-bold text-gray-900 mb-2"></h2>
+                    <div class="text-sm text-gray-500">
+                        Preview - changes not yet saved
+                    </div>
+                </div>
+                
+                <div id="previewContent" class="prose max-w-none"></div>
+            </div>
+            
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button onclick="closePreview()" 
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg transition duration-200">
+                    Close Preview
+                </button>
+                <button onclick="closePreview(); document.querySelector('form').submit();" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition duration-200">
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+function previewChanges() {
+    const title = document.getElementById('title').value;
+    const content = document.getElementById('content').value;
+    
+    document.getElementById('previewTitle').textContent = title || 'Untitled Thread';
+    document.getElementById('previewContent').innerHTML = content.replace(/\n/g, '<br>') || '<em>No content</em>';
+    
+    document.getElementById('previewModal').classList.remove('hidden');
+}
+
+function closePreview() {
+    document.getElementById('previewModal').classList.add('hidden');
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closePreview();
+    }
+});
+
+// Close modal on backdrop click
+document.getElementById('previewModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closePreview();
+    }
+});
+
+// Auto-save functionality
+let saveTimer;
+function autoSave() {
+    const title = document.getElementById('title').value;
+    const content = document.getElementById('content').value;
+    
+    if (title !== '{{ $thread->title }}' || content !== `{{ $thread->content }}`) {
+        localStorage.setItem('forum_thread_edit_{{ $thread->id }}', JSON.stringify({
+            title: title,
+            content: content,
+            timestamp: Date.now()
+        }));
+    }
+}
+
+// Set up auto-save every 30 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    saveTimer = setInterval(autoSave, 30000);
+    
+    // Load any existing draft
+    const draft = localStorage.getItem('forum_thread_edit_{{ $thread->id }}');
+    if (draft) {
+        const draftData = JSON.parse(draft);
+        const age = Date.now() - draftData.timestamp;
+        
+        // Only load draft if it's less than 1 hour old
+        if (age < 60 * 60 * 1000) {
+            if (confirm('An unsaved draft was found. Would you like to restore it?')) {
+                document.getElementById('title').value = draftData.title || '';
+                document.getElementById('content').value = draftData.content || '';
+            }
+        }
+    }
+});
+
+// Clear draft on successful submission
+document.querySelector('form').addEventListener('submit', function() {
+    localStorage.removeItem('forum_thread_edit_{{ $thread->id }}');
+    clearInterval(saveTimer);
+});
+</script>
+@endpush
+@endsection

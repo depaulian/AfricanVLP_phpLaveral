@@ -1,0 +1,29 @@
+{
+    "name": "au-vlp-client",
+    "version": "1.0.0",
+    "description": "AU VLP Client Application Frontend Assets",
+    "private": true,
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "devDependencies": {
+        "@tailwindcss/forms": "^0.5.7",
+        "@tailwindcss/typography": "^0.5.10",
+        "alpinejs": "^3.13.3",
+        "autoprefixer": "^10.4.16",
+        "axios": "^1.7.4",
+        "concurrently": "^9.0.1",
+        "laravel-vite-plugin": "^0.8.1",
+        "postcss": "^8.4.32",
+        "tailwindcss": "^3.3.6",
+        "vite": "^4.5.1"
+    },
+    "dependencies": {
+        "@headlessui/vue": "^1.7.16",
+        "@heroicons/react": "^2.0.18",
+        "chart.js": "^4.4.0",
+        "sortablejs": "^1.15.0"
+    }
+}
