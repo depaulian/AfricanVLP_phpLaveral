@@ -104,7 +104,7 @@ jobs:
               sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8081|" .env.example
               
               # Database Configuration
-              sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_STAGING}|" .env
+              sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_STAGING}|" .env.example
               sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_STAGING}|" .env.example
               sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_STAGING}|" .env.example
               sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_STAGING}\"|" .env.example
