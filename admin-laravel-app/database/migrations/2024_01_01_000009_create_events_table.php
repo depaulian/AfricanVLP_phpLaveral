@@ -34,8 +34,7 @@ return new class extends Migration
             $table->string('contact_phone', 20)->nullable();
             $table->decimal('registration_fee', 10, 2)->nullable();
             $table->datetime('registration_deadline')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
             $table->foreign('city_id')->references('id')->on('cities')->onDelete('set null');

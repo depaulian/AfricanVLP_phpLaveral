@@ -18,8 +18,7 @@ return new class extends Migration
             $table->enum('status', ['active', 'archived', 'deleted'])->default('active');
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('organization_id')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');

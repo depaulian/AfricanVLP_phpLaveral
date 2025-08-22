@@ -20,8 +20,7 @@ return new class extends Migration
             $table->decimal('total_hours', 8, 2)->nullable();
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->integer('sort_order')->default(0);
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->index(['status', 'sort_order']);
         });

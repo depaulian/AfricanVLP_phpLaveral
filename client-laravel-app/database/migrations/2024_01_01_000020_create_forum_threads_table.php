@@ -24,8 +24,7 @@ return new class extends Migration
             $table->integer('views_count')->default(0);
             $table->datetime('last_post_at')->nullable();
             $table->unsignedBigInteger('last_post_user_id')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');

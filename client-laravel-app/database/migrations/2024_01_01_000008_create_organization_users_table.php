@@ -18,8 +18,7 @@ return new class extends Migration
             $table->enum('role', ['admin', 'member', 'moderator', 'viewer'])->default('member');
             $table->enum('status', ['active', 'inactive', 'pending', 'suspended'])->default('pending');
             $table->datetime('joined_date')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');

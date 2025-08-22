@@ -25,8 +25,7 @@ return new class extends Migration
             $table->datetime('published_at')->nullable();
             $table->string('author', 100)->nullable();
             $table->string('source', 255)->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('set null');
             $table->foreign('region_id')->references('id')->on('regions')->onDelete('set null');

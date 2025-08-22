@@ -19,8 +19,7 @@ return new class extends Migration
             $table->string('color', 7)->nullable();
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->integer('sort_order')->default(0);
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->index(['status', 'sort_order']);
         });

@@ -15,8 +15,6 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('country_id')->nullable();
             $table->string('name', 45)->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
             $table->string('state_province')->nullable();
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();

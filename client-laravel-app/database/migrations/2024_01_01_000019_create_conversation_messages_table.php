@@ -21,8 +21,7 @@ return new class extends Migration
             $table->string('attachment_type', 50)->nullable();
             $table->boolean('is_read')->default(false);
             $table->datetime('read_at')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('conversation_id')->references('id')->on('conversations')->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
