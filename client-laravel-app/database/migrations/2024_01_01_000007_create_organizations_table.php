@@ -34,8 +34,7 @@ return new class extends Migration
             $table->decimal('longitude', 11, 8)->nullable();
             $table->year('established_year')->nullable();
             $table->integer('employee_count')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('city_id')->references('id')->on('cities')->onDelete('set null');
             $table->foreign('country_id')->references('id')->on('countries')->onDelete('set null');

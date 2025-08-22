@@ -13,8 +13,7 @@ class AuMessageAttachment extends Model
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'au_message_id',
@@ -27,8 +26,6 @@ class AuMessageAttachment extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'deleted_at' => 'datetime',
         'file_size' => 'integer',
     ];

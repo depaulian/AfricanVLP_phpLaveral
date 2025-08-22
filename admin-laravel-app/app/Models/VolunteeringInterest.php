@@ -9,8 +9,7 @@ class VolunteeringInterest extends Model
 {
     protected $table = 'volunteering_interests';
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'user_id',
@@ -22,8 +21,6 @@ class VolunteeringInterest extends Model
 
     protected $casts = [
         'interest_level' => 'integer',
-        'created' => 'datetime',
-        'modified' => 'datetime',
     ];
 
     /**

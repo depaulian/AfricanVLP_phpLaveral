@@ -16,8 +16,7 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'first_name',
@@ -68,8 +67,6 @@ class User extends Authenticatable
         'digest_notifications_enabled' => 'boolean',
         'immediate_notifications_enabled' => 'boolean',
         'email_notifications_enabled' => 'boolean',
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'registration_completed_at' => 'datetime',
         'onboarding_completed' => 'boolean',
         'registration_metadata' => 'array',
@@ -663,7 +660,7 @@ class User extends Authenticatable
             return null;
         }
 
-        return $this->created->diffInMinutes($this->registration_completed_at);
+        return $this->created_at->diffInMinutes($this->registration_completed_at);
     }
 
     /**
@@ -690,7 +687,7 @@ class User extends Authenticatable
             ];
         }
 
-        $daysSinceStart = $this->created->diffInDays(now());
+        $daysSinceStart = $this->created_at->diffInDays(now());
         $hasSteps = $this->registrationSteps()->exists();
 
         if (!$hasSteps) {

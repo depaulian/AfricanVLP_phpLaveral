@@ -26,8 +26,8 @@ class SuperAdminSeeder extends Seeder
                 'status' => 'active',
                 'is_admin' => true,
                 'email_verified_at' => now(),
-                'created' => now(),
-                'modified' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'first_name' => 'System',
@@ -37,8 +37,8 @@ class SuperAdminSeeder extends Seeder
                 'status' => 'active',
                 'is_admin' => true,
                 'email_verified_at' => now(),
-                'created' => now(),
-                'modified' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
         ];
 
@@ -53,7 +53,7 @@ class SuperAdminSeeder extends Seeder
                 $existingUser->update([
                     'is_admin' => true,
                     'status' => 'active',
-                    'modified' => now(),
+                    'created_at' => now(),
                 ]);
                 
                 $this->command->info("✓ Updated {$adminData['email']} to Admin");
@@ -113,8 +113,8 @@ class SuperAdminSeeder extends Seeder
             if (!$existingUser) {
                 $adminData['password'] = Hash::make($adminData['password']);
                 $adminData['email_verified_at'] = now();
-                $adminData['created'] = now();
-                $adminData['modified'] = now();
+                $adminData['created_at'] = now();
+                $adminData['updated_at'] = now();
                 
                 User::create($adminData);
                 $this->command->info("✓ Created Admin: {$adminData['email']}");

@@ -11,8 +11,7 @@ class UserFeedbackResponse extends Model
 {
     use HasFactory, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'user_feedback_id',
@@ -23,8 +22,6 @@ class UserFeedbackResponse extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'is_internal' => 'boolean',
         'is_solution' => 'boolean',
     ];

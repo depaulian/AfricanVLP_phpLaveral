@@ -28,8 +28,7 @@ return new class extends Migration
             $table->string('contact_person', 100)->nullable();
             $table->string('contact_email', 100)->nullable();
             $table->string('contact_phone', 20)->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('event_id')->references('id')->on('events')->onDelete('cascade');
             $table->foreign('volunteering_role_id')->references('id')->on('volunteering_roles')->onDelete('set null');

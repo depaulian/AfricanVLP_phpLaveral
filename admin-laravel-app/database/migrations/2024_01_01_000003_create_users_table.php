@@ -32,8 +32,7 @@ return new class extends Migration
             $table->timestamp('last_login')->nullable();
             $table->integer('login_count')->default(0);
             $table->rememberToken();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('city_id')->references('id')->on('cities')->onDelete('set null');
             $table->foreign('country_id')->references('id')->on('countries')->onDelete('set null');

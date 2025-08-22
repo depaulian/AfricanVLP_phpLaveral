@@ -7,8 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class VolunteeringDuration extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'name',
@@ -25,8 +24,6 @@ class VolunteeringDuration extends Model
         'weeks_duration' => 'integer',
         'total_hours' => 'decimal:2',
         'sort_order' => 'integer',
-        'created' => 'datetime',
-        'modified' => 'datetime',
     ];
 
     /**

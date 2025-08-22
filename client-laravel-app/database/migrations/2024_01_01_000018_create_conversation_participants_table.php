@@ -19,8 +19,7 @@ return new class extends Migration
             $table->datetime('left_at')->nullable();
             $table->enum('role', ['admin', 'member'])->default('member');
             $table->datetime('last_read_at')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('conversation_id')->references('id')->on('conversations')->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');

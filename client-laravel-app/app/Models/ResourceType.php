@@ -7,8 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ResourceType extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'name',
@@ -19,8 +18,6 @@ class ResourceType extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime'
     ];
 
     /**

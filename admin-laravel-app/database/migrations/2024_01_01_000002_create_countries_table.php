@@ -29,8 +29,7 @@ return new class extends Migration
             $table->decimal('longitude', 11, 8)->nullable();
             $table->enum('status', ['active', 'inactive'])->default('active');
             $table->json('settings')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('region_id')->references('id')->on('regions')->onDelete('set null');
             $table->index(['iso', 'name']);

@@ -9,8 +9,7 @@ class CategoryOfResource extends Model
 {
     protected $table = 'category_of_resources';
     
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'name',
@@ -21,8 +20,6 @@ class CategoryOfResource extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime'
     ];
 
     /**

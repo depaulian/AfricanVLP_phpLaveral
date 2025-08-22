@@ -21,8 +21,7 @@ return new class extends Migration
             $table->datetime('edited_at')->nullable();
             $table->unsignedBigInteger('edited_by')->nullable();
             $table->integer('likes_count')->default(0);
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('forum_thread_id')->references('id')->on('forum_threads')->onDelete('cascade');
             $table->foreign('user_id')->references('id')->on('users')->onDelete('set null');

@@ -9,8 +9,7 @@ class VolunteeringHistory extends Model
 {
     protected $table = 'volunteering_histories';
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'user_id',
@@ -34,8 +33,6 @@ class VolunteeringHistory extends Model
         'hours_completed' => 'decimal:2',
         'rating' => 'integer',
         'certificate_issued' => 'boolean',
-        'created' => 'datetime',
-        'modified' => 'datetime',
     ];
 
     /**

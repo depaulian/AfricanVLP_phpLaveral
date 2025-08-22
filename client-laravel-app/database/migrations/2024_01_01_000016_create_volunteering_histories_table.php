@@ -25,8 +25,7 @@ return new class extends Migration
             $table->integer('rating')->nullable(); // 1-5 rating
             $table->text('notes')->nullable();
             $table->boolean('certificate_issued')->default(false);
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('volunteering_oppurtunity_id')->references('id')->on('volunteering_oppurtunities')->onDelete('cascade');

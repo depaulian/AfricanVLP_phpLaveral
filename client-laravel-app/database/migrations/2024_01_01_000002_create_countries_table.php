@@ -20,8 +20,7 @@ return new class extends Migration
             $table->smallInteger('numcode')->nullable();
             $table->integer('phonecode')->nullable();
             $table->unsignedBigInteger('region_id')->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('region_id')->references('id')->on('regions')->onDelete('set null');
             $table->index(['iso', 'name']);

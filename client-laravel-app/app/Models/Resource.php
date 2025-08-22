@@ -12,8 +12,7 @@ class Resource extends Model
 {
     use SoftDeletes;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'title',
@@ -34,8 +33,6 @@ class Resource extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'published_date' => 'datetime',
         'featured' => 'boolean',
         'download_count' => 'integer',

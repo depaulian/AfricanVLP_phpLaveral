@@ -8,8 +8,7 @@ use App\Services\FileUploadService;
 
 class ResourceFile extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'resource_id',
@@ -31,8 +30,6 @@ class ResourceFile extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'file_size' => 'integer',
         'width' => 'integer',
         'height' => 'integer',

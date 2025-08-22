@@ -8,8 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Event extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'organization_id',
@@ -45,8 +44,6 @@ class Event extends Model
         'max_participants' => 'integer',
         'current_participants' => 'integer',
         'is_featured' => 'boolean',
-        'created' => 'datetime',
-        'modified' => 'datetime',
     ];
 
     /**

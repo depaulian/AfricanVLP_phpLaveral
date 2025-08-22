@@ -18,8 +18,7 @@ return new class extends Migration
             $table->integer('interest_level')->default(1); // 1-4 scale
             $table->text('notes')->nullable();
             $table->enum('status', ['active', 'inactive'])->default('active');
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('volunteering_category_id')->references('id')->on('volunteering_categories')->onDelete('cascade');

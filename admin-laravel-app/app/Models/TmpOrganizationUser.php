@@ -8,8 +8,7 @@ use Illuminate\Support\Str;
 
 class TmpOrganizationUser extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'organization_id',
@@ -26,8 +25,6 @@ class TmpOrganizationUser extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'invitation_sent_at' => 'datetime',
         'expires_at' => 'datetime',
         'accepted_at' => 'datetime',

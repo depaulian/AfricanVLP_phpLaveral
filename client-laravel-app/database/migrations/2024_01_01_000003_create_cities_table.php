@@ -15,8 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('country_id')->nullable();
             $table->string('name', 45)->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
             
             $table->foreign('country_id')->references('id')->on('countries')->onDelete('cascade');
             $table->index(['country_id', 'name']);

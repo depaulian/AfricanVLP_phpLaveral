@@ -15,9 +15,6 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
-
     protected $fillable = [
         'first_name',
         'last_name',
@@ -56,8 +53,8 @@ class User extends Authenticatable
         'last_login' => 'datetime',
         'login_count' => 'integer',
         'is_admin' => 'boolean',
-        'created' => 'datetime',
-        'modified' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     /**

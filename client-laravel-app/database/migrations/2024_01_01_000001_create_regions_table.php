@@ -15,8 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name', 45)->nullable();
             $table->string('continent', 45)->nullable();
-            $table->datetime('created');
-            $table->datetime('modified');
+            $table->timestamps();
         });
     }
 
