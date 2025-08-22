@@ -7,8 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ConversationMessage extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'conversation_id',
@@ -24,8 +23,6 @@ class ConversationMessage extends Model
     protected $casts = [
         'is_read' => 'boolean',
         'read_at' => 'datetime',
-        'created' => 'datetime',
-        'modified' => 'datetime',
     ];
 
     /**

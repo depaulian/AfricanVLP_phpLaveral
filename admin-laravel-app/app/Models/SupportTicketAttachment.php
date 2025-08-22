@@ -11,8 +11,7 @@ class SupportTicketAttachment extends Model
 {
     use HasFactory;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'support_ticket_id',
@@ -27,8 +26,6 @@ class SupportTicketAttachment extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'file_size' => 'integer',
     ];
 

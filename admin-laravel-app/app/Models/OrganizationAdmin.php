@@ -12,8 +12,7 @@ class OrganizationAdmin extends Model
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'organization_id',
@@ -29,8 +28,6 @@ class OrganizationAdmin extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'assigned_at' => 'datetime',
         'expires_at' => 'datetime',
         'is_active' => 'boolean',

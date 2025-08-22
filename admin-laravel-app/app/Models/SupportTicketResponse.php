@@ -12,8 +12,7 @@ class SupportTicketResponse extends Model
 {
     use HasFactory, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'support_ticket_id',
@@ -25,8 +24,6 @@ class SupportTicketResponse extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'is_internal' => 'boolean',
         'is_solution' => 'boolean',
         'response_time_minutes' => 'integer',

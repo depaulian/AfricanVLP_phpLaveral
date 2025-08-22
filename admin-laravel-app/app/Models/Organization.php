@@ -9,8 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Organization extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'name',
@@ -40,8 +39,6 @@ class Organization extends Model
         'longitude' => 'decimal:8',
         'established_year' => 'integer',
         'employee_count' => 'integer',
-        'created' => 'datetime',
-        'modified' => 'datetime',
     ];
 
     /**

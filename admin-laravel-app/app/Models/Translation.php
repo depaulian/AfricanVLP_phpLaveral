@@ -12,8 +12,7 @@ class Translation extends Model
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'key',
@@ -28,8 +27,6 @@ class Translation extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'deleted_at' => 'datetime',
         'is_active' => 'boolean',
         'is_system' => 'boolean',

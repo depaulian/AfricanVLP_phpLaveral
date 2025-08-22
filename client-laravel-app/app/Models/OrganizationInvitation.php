@@ -9,8 +9,7 @@ class OrganizationInvitation extends Model
 {
     protected $table = 'organization_invitations';
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'organization_id',
@@ -25,8 +24,6 @@ class OrganizationInvitation extends Model
 
     protected $casts = [
         'expires_at' => 'datetime',
-        'created' => 'datetime',
-        'modified' => 'datetime',
     ];
 
     /**

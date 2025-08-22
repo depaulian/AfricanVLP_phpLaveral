@@ -7,8 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class News extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'organization_id',
@@ -29,8 +28,6 @@ class News extends Model
         'published_at' => 'datetime',
         'is_featured' => 'boolean',
         'views_count' => 'integer',
-        'created' => 'datetime',
-        'modified' => 'datetime',
     ];
 
     /**

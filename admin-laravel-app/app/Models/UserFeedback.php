@@ -13,8 +13,7 @@ class UserFeedback extends Model
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'user_id',
@@ -38,8 +37,6 @@ class UserFeedback extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'responded_at' => 'datetime',
         'rating' => 'integer',
         'is_public' => 'boolean',
@@ -192,7 +189,7 @@ class UserFeedback extends Model
      */
     public function getTimeSinceSubmission(): string
     {
-        return $this->created->diffForHumans();
+        return $this->created_at->diffForHumans();
     }
 
     /**

@@ -13,8 +13,7 @@ class UserFeedbackAttachment extends Model
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'user_feedback_id',
@@ -28,8 +27,6 @@ class UserFeedbackAttachment extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'deleted_at' => 'datetime',
         'file_size' => 'integer',
     ];

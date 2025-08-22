@@ -13,8 +13,7 @@ class SupportTicket extends Model
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'user_id',
@@ -34,8 +33,6 @@ class SupportTicket extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'resolved_at' => 'datetime',
         'closed_at' => 'datetime',
         'tags' => 'array',
@@ -110,7 +107,7 @@ class SupportTicket extends Model
         }
 
         $dueDays = $this->getDueDays();
-        return $this->created->addDays($dueDays)->isPast();
+        return $this->created_at->addDays($dueDays)->isPast();
     }
 
     /**
@@ -178,7 +175,7 @@ class SupportTicket extends Model
     public function getTimeSinceLastUpdate(): string
     {
         $latestResponse = $this->getLatestResponse();
-        $lastUpdate = $latestResponse ? $latestResponse->created : $this->created;
+        $lastUpdate = $latestResponse ? $latestResponse->created_at : $this->created_at;
         
         return $lastUpdate->diffForHumans();
     }

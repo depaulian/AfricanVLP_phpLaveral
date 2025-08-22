@@ -7,8 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Notification extends Model
 {
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'user_id',
@@ -25,8 +24,6 @@ class Notification extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'read_at' => 'datetime',
         'expires_at' => 'datetime',
         'data' => 'array'
@@ -160,6 +157,6 @@ class Notification extends Model
      */
     public function getTimeAgo(): string
     {
-        return $this->created->diffForHumans();
+        return $this->created_at->diffForHumans();
     }
 }

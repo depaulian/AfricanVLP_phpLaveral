@@ -8,13 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Auditable;
+use Illuminate\Support\Str;
 
 class AuMessage extends Model
 {
     use HasFactory, SoftDeletes, Auditable;
 
-    const CREATED_AT = 'created';
-    const UPDATED_AT = 'modified';
+
 
     protected $fillable = [
         'sender_id',
@@ -36,8 +36,6 @@ class AuMessage extends Model
     ];
 
     protected $casts = [
-        'created' => 'datetime',
-        'modified' => 'datetime',
         'deleted_at' => 'datetime',
         'is_read' => 'boolean',
         'read_at' => 'datetime',
@@ -92,7 +90,7 @@ class AuMessage extends Model
      */
     public function replies(): HasMany
     {
-        return $this->hasMany(AuMessage::class, 'parent_id')->orderBy('created');
+        return $this->hasMany(AuMessage::class, 'parent_id')->orderBy('created_at');
     }
 
     /**
@@ -100,7 +98,7 @@ class AuMessage extends Model
      */
     public function threadMessages(): HasMany
     {
-        return $this->hasMany(AuMessage::class, 'thread_id')->orderBy('created');
+        return $this->hasMany(AuMessage::class, 'thread_id')->orderBy('created_at');
     }
 
     /**
@@ -256,7 +254,7 @@ class AuMessage extends Model
      */
     public function getTimeSinceAttribute(): string
     {
-        return $this->created->diffForHumans();
+        return $this->created_at->diffForHumans();
     }
 
     /**
