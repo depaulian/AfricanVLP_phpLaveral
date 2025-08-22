@@ -4,422 +4,348 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\UserProfile;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
+use App\Models\UserSkill;
+use App\Models\UserVolunteeringInterest;
+use App\Models\UserVolunteeringHistory;
+use App\Models\UserDocument;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 class ProfileCacheService
 {
-    // Cache key constants
-    public const PROFILE_KEY = 'user_profile_';
-    public const PROFILE_COMPLETE_KEY = 'user_profile_complete_';
-    public const PROFILE_STATS_KEY = 'user_profile_stats_';
-    public const PROFILE_SEARCH_KEY = 'profile_search_';
-    public const PROFILE_ANALYTICS_KEY = 'profile_analytics_';
-    public const PROFILE_SKILLS_KEY = 'user_profile_skills_';
-    public const PROFILE_INTERESTS_KEY = 'user_profile_interests_';
-    public const PROFILE_HISTORY_KEY = 'user_profile_history_';
-    public const PROFILE_DOCUMENTS_KEY = 'user_profile_documents_';
+    // Primary keys required by tests
+    public const PROFILE_KEY = 'profile:';
+    public const PROFILE_COMPLETE_KEY = 'profile_complete:';
+    public const PROFILE_STATS_KEY = 'profile_stats:';
 
-    // Default cache TTL in minutes
-    protected int $defaultTtl = 60;
-    protected int $searchTtl = 30;
-    protected int $analyticsTtl = 120;
+    // Additional keys used by middleware/invalidation and extra features
+    public const PROFILE_SKILLS_KEY = 'profile_skills:';
+    public const PROFILE_INTERESTS_KEY = 'profile_interests:';
+    public const PROFILE_HISTORY_KEY = 'profile_history:';
+    public const PROFILE_DOCUMENTS_KEY = 'profile_documents:';
 
-    /**
-     * Get user profile with caching
-     */
-    public function getProfile(int $userId, bool $forceRefresh = false): ?UserProfile
+    // Auxiliary keys
+    public const PROFILE_SEARCH_KEY = 'profile_search:';        // + md5(query|filters)
+    public const PROFILE_ANALYTICS_KEY = 'profile_analytics:';  // + userId
+
+    // TTLs (minutes)
+    protected int $ttlProfile = 60;
+    protected int $ttlComplete = 30;
+    protected int $ttlStats = 20;
+    protected int $ttlItems = 60;
+    protected int $ttlSearch = 10;
+    protected int $ttlAnalytics = 60;
+
+    // Store expiration timestamps alongside cache values (under a parallel :exp key)
+    protected function expKey(string $key): string
     {
-        $cacheKey = self::PROFILE_KEY . $userId;
-
-        if ($forceRefresh) {
-            Cache::forget($cacheKey);
-        }
-
-        return Cache::remember($cacheKey, $this->defaultTtl, function () use ($userId) {
-            return UserProfile::where('user_id', $userId)->first();
-        });
+        return $key . ':exp';
     }
 
-    /**
-     * Get complete profile data (user + profile + metadata)
-     */
-    public function getCompleteProfile(int $userId, bool $forceRefresh = false): ?array
-    {
-        $cacheKey = self::PROFILE_COMPLETE_KEY . $userId;
-
-        if ($forceRefresh) {
-            Cache::forget($cacheKey);
-        }
-
-        return Cache::remember($cacheKey, $this->defaultTtl, function () use ($userId) {
-            $user = User::find($userId);
-            if (!$user) {
-                return null;
-            }
-
-            $profile = UserProfile::where('user_id', $userId)->first();
-            if (!$profile) {
-                return null;
-            }
-
-            return [
-                'user' => $user->toArray(),
-                'profile' => $profile->toArray(),
-                'cached_at' => Carbon::now()->toISOString(),
-            ];
-        });
-    }
-
-    /**
-     * Get user skills with caching
-     */
-    public function getUserSkills(int $userId, bool $forceRefresh = false): array
-    {
-        $cacheKey = self::PROFILE_SKILLS_KEY . $userId;
-
-        if ($forceRefresh) {
-            Cache::forget($cacheKey);
-        }
-
-        return Cache::remember($cacheKey, $this->defaultTtl, function () use ($userId) {
-            // Assuming you have a UserSkill model with relationships
-            return \App\Models\UserSkill::where('user_id', $userId)
-                ->with('skill') // If you have a skills table
-                ->get()
-                ->toArray();
-        });
-    }
-
-    /**
-     * Get user volunteering interests with caching
-     */
-    public function getUserInterests(int $userId, bool $forceRefresh = false): array
-    {
-        $cacheKey = self::PROFILE_INTERESTS_KEY . $userId;
-
-        if ($forceRefresh) {
-            Cache::forget($cacheKey);
-        }
-
-        return Cache::remember($cacheKey, $this->defaultTtl, function () use ($userId) {
-            return \App\Models\UserVolunteeringInterest::where('user_id', $userId)
-                ->with('interest') // If you have an interests table
-                ->get()
-                ->toArray();
-        });
-    }
-
-    /**
-     * Get user volunteering history with caching
-     */
-    public function getUserHistory(int $userId, bool $forceRefresh = false): array
-    {
-        $cacheKey = self::PROFILE_HISTORY_KEY . $userId;
-
-        if ($forceRefresh) {
-            Cache::forget($cacheKey);
-        }
-
-        return Cache::remember($cacheKey, $this->defaultTtl, function () use ($userId) {
-            return \App\Models\UserVolunteeringHistory::where('user_id', $userId)
-                ->orderBy('start_date', 'desc')
-                ->get()
-                ->toArray();
-        });
-    }
-
-    /**
-     * Get user documents with caching
-     */
-    public function getUserDocuments(int $userId, bool $forceRefresh = false): array
-    {
-        $cacheKey = self::PROFILE_DOCUMENTS_KEY . $userId;
-
-        if ($forceRefresh) {
-            Cache::forget($cacheKey);
-        }
-
-        return Cache::remember($cacheKey, $this->defaultTtl, function () use ($userId) {
-            return \App\Models\UserDocument::where('user_id', $userId)
-                ->where('is_active', true) // Assuming you have an active flag
-                ->orderBy('created_at', 'desc')
-                ->get()
-                ->toArray();
-        });
-    }
-    public function getProfileStats(int $userId, bool $forceRefresh = false): array
-    {
-        $cacheKey = self::PROFILE_STATS_KEY . $userId;
-
-        if ($forceRefresh) {
-            Cache::forget($cacheKey);
-        }
-
-        return Cache::remember($cacheKey, $this->defaultTtl, function () use ($userId) {
-            $profile = UserProfile::where('user_id', $userId)->first();
-            if (!$profile) {
-                return [
-                    'profile_completion' => 0,
-                    'skills_count' => 0,
-                    'last_updated' => null,
-                ];
-            }
-
-            // Calculate profile completion percentage
-            $completionFields = [
-                'first_name', 'last_name', 'email', 'phone', 'address',
-                'city', 'state', 'bio', 'experience', 'skills'
-            ];
-            
-            $completedFields = 0;
-            foreach ($completionFields as $field) {
-                if (!empty($profile->$field)) {
-                    $completedFields++;
-                }
-            }
-
-            $completionPercentage = round(($completedFields / count($completionFields)) * 100);
-
-            // Count skills (assuming it's a JSON field or comma-separated)
-            $skillsCount = 0;
-            if (!empty($profile->skills)) {
-                if (is_string($profile->skills)) {
-                    $skills = json_decode($profile->skills, true);
-                    if (json_last_error() === JSON_ERROR_NONE && is_array($skills)) {
-                        $skillsCount = count($skills);
-                    } else {
-                        // Fallback to comma-separated count
-                        $skillsCount = count(array_filter(explode(',', $profile->skills)));
-                    }
-                } elseif (is_array($profile->skills)) {
-                    $skillsCount = count($profile->skills);
-                }
-            }
-
-            return [
-                'profile_completion' => $completionPercentage,
-                'skills_count' => $skillsCount,
-                'last_updated' => $profile->updated_at?->toISOString(),
-            ];
-        });
-    }
-
-    /**
-     * Invalidate all cache for a specific user
-     */
-    public function invalidateUserCache(int $userId): void
-    {
-        $keys = [
-            self::PROFILE_KEY . $userId,
-            self::PROFILE_COMPLETE_KEY . $userId,
-            self::PROFILE_STATS_KEY . $userId,
-            self::PROFILE_ANALYTICS_KEY . $userId,
-            self::PROFILE_SKILLS_KEY . $userId,
-            self::PROFILE_INTERESTS_KEY . $userId,
-            self::PROFILE_HISTORY_KEY . $userId,
-            self::PROFILE_DOCUMENTS_KEY . $userId,
-        ];
-
-        foreach ($keys as $key) {
-            Cache::forget($key);
-        }
-    }
-
-    /**
-     * Invalidate specific cache type for a user
-     */
-    public function invalidateSpecificCache(int $userId, string $type): void
-    {
-        $keyMap = [
-            'profile' => self::PROFILE_KEY . $userId,
-            'complete' => self::PROFILE_COMPLETE_KEY . $userId,
-            'stats' => self::PROFILE_STATS_KEY . $userId,
-            'analytics' => self::PROFILE_ANALYTICS_KEY . $userId,
-            'skills' => self::PROFILE_SKILLS_KEY . $userId,
-            'interests' => self::PROFILE_INTERESTS_KEY . $userId,
-            'history' => self::PROFILE_HISTORY_KEY . $userId,
-            'documents' => self::PROFILE_DOCUMENTS_KEY . $userId,
-        ];
-
-        if (isset($keyMap[$type])) {
-            Cache::forget($keyMap[$type]);
-        }
-    }
-
-    /**
-     * Warm up cache for a user (preload all cache types)
-     */
-    public function warmUpUserCache(int $userId): void
-    {
-        // Preload all cache types
-        $this->getProfile($userId);
-        $this->getCompleteProfile($userId);
-        $this->getProfileStats($userId);
-        $this->getUserSkills($userId);
-        $this->getUserInterests($userId);
-        $this->getUserHistory($userId);
-        $this->getUserDocuments($userId);
-    }
-
-    /**
-     * Check if cached data exists for a user and type
-     */
-    public function hasCachedData(int $userId, string $type): bool
-    {
-        $keyMap = [
-            'profile' => self::PROFILE_KEY . $userId,
-            'complete' => self::PROFILE_COMPLETE_KEY . $userId,
-            'stats' => self::PROFILE_STATS_KEY . $userId,
-            'analytics' => self::PROFILE_ANALYTICS_KEY . $userId,
-            'skills' => self::PROFILE_SKILLS_KEY . $userId,
-            'interests' => self::PROFILE_INTERESTS_KEY . $userId,
-            'history' => self::PROFILE_HISTORY_KEY . $userId,
-            'documents' => self::PROFILE_DOCUMENTS_KEY . $userId,
-        ];
-
-        if (isset($keyMap[$type])) {
-            return Cache::has($keyMap[$type]);
-        }
-
-        return false;
-    }
-
-    /**
-     * Get cache key for a specific user and type
-     */
+    // Key builder exposed for tests/middleware
     public function getCacheKey(int $userId, string $type): string
     {
-        $keyMap = [
+        return match ($type) {
             'profile' => self::PROFILE_KEY . $userId,
             'complete' => self::PROFILE_COMPLETE_KEY . $userId,
             'stats' => self::PROFILE_STATS_KEY . $userId,
-            'analytics' => self::PROFILE_ANALYTICS_KEY . $userId,
             'skills' => self::PROFILE_SKILLS_KEY . $userId,
             'interests' => self::PROFILE_INTERESTS_KEY . $userId,
             'history' => self::PROFILE_HISTORY_KEY . $userId,
             'documents' => self::PROFILE_DOCUMENTS_KEY . $userId,
-        ];
-
-        return $keyMap[$type] ?? '';
+            default => self::PROFILE_COMPLETE_KEY . $userId,
+        };
     }
 
-    /**
-     * Extend cache TTL for a specific key
-     */
+    public function hasCachedData(int $userId, string $type): bool
+    {
+        return Cache::has($this->getCacheKey($userId, $type));
+    }
+
     public function extendCacheTTL(int $userId, string $type, int $minutes): bool
     {
-        $cacheKey = $this->getCacheKey($userId, $type);
-        
-        if (empty($cacheKey) || !Cache::has($cacheKey)) {
+        $key = $this->getCacheKey($userId, $type);
+        if (!Cache::has($key)) {
             return false;
         }
 
-        $value = Cache::get($cacheKey);
-        Cache::put($cacheKey, $value, $minutes);
+        $value = Cache::get($key);
+        Cache::put($key, $value, now()->addMinutes($minutes));
+
+        // Update parallel exp key if present
+        $expKey = $this->expKey($key);
+        Cache::put($expKey, now()->addMinutes($minutes), now()->addMinutes($minutes));
 
         return true;
     }
 
-    /**
-     * Cache search results
-     */
+    public function getCacheExpiration(int $userId, string $type): ?Carbon
+    {
+        $key = $this->getCacheKey($userId, $type);
+        $exp = Cache::get($this->expKey($key));
+        return $exp instanceof Carbon ? $exp : (is_string($exp) ? Carbon::parse($exp) : null);
+    }
+
+    // ---------- Core getters ----------
+
+    public function getProfile(int $userId, bool $force = false): ?UserProfile
+    {
+        // If user doesn't exist
+        $user = User::find($userId);
+        if (!$user) {
+            return null;
+        }
+
+        $key = self::PROFILE_KEY . $userId;
+
+        if ($force) {
+            Cache::forget($key);
+            Cache::forget($this->expKey($key));
+        }
+
+        $ttl = now()->addMinutes($this->ttlProfile);
+
+        $result = Cache::remember($key, $ttl, function () use ($userId) {
+            return UserProfile::where('user_id', $userId)->first();
+        });
+
+        Cache::put($this->expKey($key), $ttl, $ttl);
+
+        return $result;
+    }
+
+    public function getCompleteProfile(int $userId, bool $force = false): ?array
+    {
+        $user = User::find($userId);
+        if (!$user) {
+            return null;
+        }
+
+        $key = self::PROFILE_COMPLETE_KEY . $userId;
+
+        if ($force) {
+            Cache::forget($key);
+            Cache::forget($this->expKey($key));
+        }
+
+        $ttl = now()->addMinutes($this->ttlComplete);
+
+        $result = Cache::remember($key, $ttl, function () use ($userId, $user) {
+            $profile = UserProfile::where('user_id', $userId)->first();
+
+            return [
+                'user' => $user->only(['id', 'name', 'email']),
+                'profile' => $profile,
+                'skills' => UserSkill::where('user_id', $userId)->get(),
+                'interests' => UserVolunteeringInterest::where('user_id', $userId)->get(),
+                'history' => UserVolunteeringHistory::where('user_id', $userId)->get(),
+                'documents' => UserDocument::where('user_id', $userId)->get(),
+                'cached_at' => now(),
+            ];
+        });
+
+        Cache::put($this->expKey($key), $ttl, $ttl);
+
+        return $result;
+    }
+
+    public function getProfileStats(int $userId, bool $force = false): array
+    {
+        $key = self::PROFILE_STATS_KEY . $userId;
+
+        if ($force) {
+            Cache::forget($key);
+            Cache::forget($this->expKey($key));
+        }
+
+        $ttl = now()->addMinutes($this->ttlStats);
+
+        $result = Cache::remember($key, $ttl, function () use ($userId) {
+            $profile = UserProfile::where('user_id', $userId)->first();
+            $skillsCount = UserSkill::where('user_id', $userId)->count();
+
+            $fields = [
+                'first_name', 'last_name', 'bio', 'phone_number', 'address',
+                'city_id', 'country_id', 'date_of_birth', 'gender', 'education_level',
+            ];
+
+            $present = 0;
+            $total = count($fields);
+
+            if ($profile) {
+                foreach ($fields as $field) {
+                    $val = $profile->{$field} ?? null;
+                    if (!is_null($val) && $val !== '') {
+                        $present++;
+                    }
+                }
+            }
+
+            $completion = $total > 0 ? round(($present / $total) * 100, 1) : 0.0;
+
+            return [
+                'profile_completion' => $completion,
+                'skills_count' => $skillsCount,
+                'last_updated' => $profile?->updated_at,
+                'cached_at' => now(),
+            ];
+        });
+
+        Cache::put($this->expKey($key), $ttl, $ttl);
+
+        return $result;
+    }
+
+    // ---------- Additional getters for specific sections ----------
+
+    public function getUserSkills(int $userId, bool $force = false)
+    {
+        $key = self::PROFILE_SKILLS_KEY . $userId;
+
+        if ($force) {
+            Cache::forget($key);
+            Cache::forget($this->expKey($key));
+        }
+
+        $ttl = now()->addMinutes($this->ttlItems);
+
+        $result = Cache::remember($key, $ttl, fn () => UserSkill::where('user_id', $userId)->get());
+        Cache::put($this->expKey($key), $ttl, $ttl);
+
+        return $result;
+    }
+
+    public function getUserInterests(int $userId, bool $force = false)
+    {
+        $key = self::PROFILE_INTERESTS_KEY . $userId;
+
+        if ($force) {
+            Cache::forget($key);
+            Cache::forget($this->expKey($key));
+        }
+
+        $ttl = now()->addMinutes($this->ttlItems);
+
+        $result = Cache::remember($key, $ttl, fn () => UserVolunteeringInterest::where('user_id', $userId)->get());
+        Cache::put($this->expKey($key), $ttl, $ttl);
+
+        return $result;
+    }
+
+    public function getVolunteeringHistory(int $userId, bool $force = false)
+    {
+        $key = self::PROFILE_HISTORY_KEY . $userId;
+
+        if ($force) {
+            Cache::forget($key);
+            Cache::forget($this->expKey($key));
+        }
+
+        $ttl = now()->addMinutes($this->ttlItems);
+
+        $result = Cache::remember($key, $ttl, fn () => UserVolunteeringHistory::where('user_id', $userId)->get());
+        Cache::put($this->expKey($key), $ttl, $ttl);
+
+        return $result;
+    }
+
+    public function getUserDocuments(int $userId, bool $force = false)
+    {
+        $key = self::PROFILE_DOCUMENTS_KEY . $userId;
+
+        if ($force) {
+            Cache::forget($key);
+            Cache::forget($this->expKey($key));
+        }
+
+        $ttl = now()->addMinutes($this->ttlItems);
+
+        $result = Cache::remember($key, $ttl, fn () => UserDocument::where('user_id', $userId)->get());
+        Cache::put($this->expKey($key), $ttl, $ttl);
+
+        return $result;
+    }
+
+    // ---------- Invalidation and warming ----------
+
+    public function invalidateUserCache(int $userId): void
+    {
+        $types = ['profile', 'complete', 'stats', 'skills', 'interests', 'history', 'documents'];
+        foreach ($types as $type) {
+            $this->invalidateSpecificCache($userId, $type);
+        }
+    }
+
+    public function invalidateSpecificCache(int $userId, string $type): void
+    {
+        $key = $this->getCacheKey($userId, $type);
+        Cache::forget($key);
+        Cache::forget($this->expKey($key));
+    }
+
+    public function warmUpUserCache(int $userId): void
+    {
+        $this->getProfile($userId, true);
+        $this->getCompleteProfile($userId, true);
+        $this->getProfileStats($userId, true);
+    }
+
+    // ---------- Search + Analytics cache ----------
+
+    protected function searchKey(string $query, array $filters): string
+    {
+        $normalized = mb_strtolower(trim($query));
+        $hash = md5($normalized . '|' . json_encode($filters));
+        return self::PROFILE_SEARCH_KEY . $hash;
+    }
+
     public function cacheSearchResults(string $query, array $filters, array $results): void
     {
-        $searchKey = $this->generateSearchKey($query, $filters);
-        
-        $cacheData = [
+        $key = $this->searchKey($query, $filters);
+        $ttl = now()->addMinutes($this->ttlSearch);
+
+        Cache::put($key, [
             'query' => $query,
             'filters' => $filters,
             'results' => $results,
-            'cached_at' => Carbon::now()->toISOString(),
-        ];
+            'cached_at' => now(),
+        ], $ttl);
 
-        Cache::put($searchKey, $cacheData, $this->searchTtl);
+        Cache::put($this->expKey($key), $ttl, $ttl);
     }
 
-    /**
-     * Get cached search results
-     */
     public function getCachedSearchResults(string $query, array $filters): ?array
     {
-        $searchKey = $this->generateSearchKey($query, $filters);
-        return Cache::get($searchKey);
+        $key = $this->searchKey($query, $filters);
+        return Cache::get($key);
     }
 
-    /**
-     * Cache analytics data for a user
-     */
     public function cacheAnalytics(int $userId, array $analytics): void
     {
-        $cacheKey = self::PROFILE_ANALYTICS_KEY . $userId;
-        Cache::put($cacheKey, $analytics, $this->analyticsTtl);
+        $key = self::PROFILE_ANALYTICS_KEY . $userId;
+        $ttl = now()->addMinutes($this->ttlAnalytics);
+
+        Cache::put($key, $analytics, $ttl);
+        Cache::put($this->expKey($key), $ttl, $ttl);
     }
 
-    /**
-     * Get cached analytics data
-     */
     public function getCachedAnalytics(int $userId): ?array
     {
-        $cacheKey = self::PROFILE_ANALYTICS_KEY . $userId;
-        return Cache::get($cacheKey);
+        $key = self::PROFILE_ANALYTICS_KEY . $userId;
+        $data = Cache::get($key);
+        return is_array($data) ? $data : null;
     }
 
-    /**
-     * Get cache statistics
-     */
+    // ---------- Diagnostics ----------
+
     public function getCacheStats(): array
     {
-        // Get all cached profile keys (this is a simplified version)
-        // In production, you might want to use Redis commands or track this separately
-        $totalCachedProfiles = $this->countCachedProfiles();
         
         return [
-            'total_cached_profiles' => $totalCachedProfiles,
-            'cache_hit_rate' => $this->calculateCacheHitRate(),
-            'memory_usage' => $this->getCacheMemoryUsage(),
-            'last_updated' => Carbon::now()->toISOString(),
+            'total_cached_profiles' => null, 
+            'cache_hit_rate' => null,
+            'memory_usage' => null,
+            'last_updated' => now(),
         ];
-    }
-
-    /**
-     * Generate search key from query and filters
-     */
-    protected function generateSearchKey(string $query, array $filters): string
-    {
-        $filterString = http_build_query($filters);
-        $keyString = $query . '_' . $filterString;
-        return self::PROFILE_SEARCH_KEY . md5($keyString);
-    }
-
-    /**
-     * Count cached profiles (simplified implementation)
-     */
-    protected function countCachedProfiles(): int
-    {
-        // This is a simplified implementation
-        // In production, you might want to maintain a counter or use Redis commands
-        return 0; // Placeholder - implement based on your cache driver
-    }
-
-    /**
-     * Calculate cache hit rate (simplified implementation)
-     */
-    protected function calculateCacheHitRate(): float
-    {
-        // This would typically require tracking hits/misses
-        // For now, return a placeholder value
-        return 85.5; // Placeholder percentage
-    }
-
-    /**
-     * Get cache memory usage (simplified implementation)
-     */
-    protected function getCacheMemoryUsage(): string
-    {
-        // This would depend on your cache driver
-        // For now, return a placeholder value
-        return '50MB'; // Placeholder
     }
 }
