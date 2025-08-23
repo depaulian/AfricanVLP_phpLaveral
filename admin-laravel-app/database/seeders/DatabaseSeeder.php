@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
             OpportunityCategoriesSeeder::class,
             SuperAdminSeeder::class,
             ContentTagsSeeder::class,
-            PageSeeder::class,
+            PagesSeeder::class,
             // CakePHPDataSeeder::class, // Uncomment to seed CakePHP data
         ]);
     }

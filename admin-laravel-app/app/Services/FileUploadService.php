@@ -2,33 +2,66 @@
 
 namespace App\Services;
 
-use Cloudinary\Cloudinary;
-use Cloudinary\Transformation\Resize;
-use Cloudinary\Transformation\Quality;
+use Aws\S3\S3Client;
+use Aws\Exception\AwsException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Intervention\Image\Laravel\Facades\Image;
 
 class FileUploadService
 {
-    protected $cloudinary;
+    protected $s3Client;
     protected $config;
 
     public function __construct()
     {
-        $this->config = config('cloudinary');
-        $this->cloudinary = new Cloudinary([
-            'cloud' => [
-                'cloud_name' => $this->config['cloud_name'],
-                'api_key' => $this->config['api_key'],
-                'api_secret' => $this->config['api_secret'],
-                'secure' => $this->config['secure']
-            ]
+        // Try config first, then fallback to direct env access
+        $this->config = [
+            'bucket' => config('filesystems.disks.s3.bucket') ?: env('AWS_BUCKET'),
+            'key' => config('filesystems.disks.s3.key') ?: env('AWS_ACCESS_KEY_ID'),
+            'secret' => config('filesystems.disks.s3.secret') ?: env('AWS_SECRET_ACCESS_KEY'),
+            'region' => config('filesystems.disks.s3.region') ?: env('AWS_DEFAULT_REGION', 'us-east-1'),
+            'endpoint' => config('filesystems.disks.s3.endpoint') ?: env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => config('filesystems.disks.s3.use_path_style_endpoint') ?: env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'cloudfront_url' => env('AWS_CLOUDFRONT_URL'),
+        ];
+        
+        // Validate required configuration
+        if (empty($this->config['bucket'])) {
+            throw new \Exception('S3 bucket name is not configured. Please check your AWS_BUCKET environment variable.');
+        }
+        
+        if (empty($this->config['key']) || empty($this->config['secret'])) {
+            throw new \Exception('S3 credentials are not configured. Please check AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables.');
+        }
+        
+        if (empty($this->config['region'])) {
+            throw new \Exception('S3 region is not configured. Please check AWS_DEFAULT_REGION environment variable.');
+        }
+        
+        $this->s3Client = new S3Client([
+            'version' => 'latest',
+            'region' => $this->config['region'],
+            'credentials' => [
+                'key' => $this->config['key'],
+                'secret' => $this->config['secret'],
+            ],
+            'endpoint' => $this->config['endpoint'] ?? null,
+            'use_path_style_endpoint' => $this->config['use_path_style_endpoint'] ?? false,
+        ]);
+        
+        // Log configuration for debugging (without sensitive data)
+        Log::info('S3 FileUploadService initialized', [
+            'bucket' => $this->config['bucket'],
+            'region' => $this->config['region'],
+            'has_credentials' => !empty($this->config['key']) && !empty($this->config['secret']),
+            'cloudfront_url' => $this->config['cloudfront_url'],
         ]);
     }
 
     /**
-     * Upload a single file to Cloudinary
+     * Upload a single file to S3
      *
      * @param UploadedFile $file
      * @param string $folder
@@ -44,41 +77,76 @@ class FileUploadService
 
             // Generate unique filename
             $filename = $this->generateFilename($file);
+            $key = $this->buildFileKey($folder, $filename, $file->getClientOriginalExtension());
             
-            // Set upload options
+            // Ensure bucket is set
+            $bucket = $this->config['bucket'];
+            if (empty($bucket)) {
+                throw new \Exception('S3 bucket is not configured');
+            }
+            
+            // Set upload options WITHOUT ACL (bucket has ACLs disabled)
             $uploadOptions = array_merge([
-                'folder' => $this->config['folders'][$folder] ?? "au-vlp/{$folder}",
-                'public_id' => $filename,
-                'resource_type' => $this->getResourceType($file),
-                'use_filename' => true,
-                'unique_filename' => false,
-                'overwrite' => false
+                'Bucket' => $bucket,
+                'Key' => $key,
+                'SourceFile' => $file->getPathname(),
+                'ContentType' => $file->getMimeType(),
+                'CacheControl' => 'max-age=31536000', // 1 year cache for better performance
+                'Metadata' => [
+                    'original-name' => $file->getClientOriginalName(),
+                    'uploaded-at' => now()->toISOString(),
+                ]
             ], $options);
 
-            // Upload to Cloudinary
-            $result = $this->cloudinary->uploadApi()->upload(
-                $file->getPathname(),
-                $uploadOptions
-            );
+            // Remove ACL if it exists in options (bucket doesn't support ACLs)
+            unset($uploadOptions['ACL']);
+
+            // Log upload attempt for debugging
+            Log::info('Attempting S3 upload', [
+                'bucket' => $bucket,
+                'key' => $key,
+                'file' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'note' => 'ACLs disabled on bucket'
+            ]);
+
+            // Upload to S3
+            $result = $this->s3Client->putObject($uploadOptions);
+
+            // Generate CloudFront URL if available, otherwise use S3 URL
+            $url = $this->getPublicUrl($key);
+
+            Log::info('S3 upload successful', ['key' => $key, 'etag' => $result['ETag']]);
 
             return [
                 'success' => true,
-                'public_id' => $result['public_id'],
-                'secure_url' => $result['secure_url'],
-                'url' => $result['url'],
-                'format' => $result['format'],
-                'resource_type' => $result['resource_type'],
-                'bytes' => $result['bytes'],
-                'width' => $result['width'] ?? null,
-                'height' => $result['height'] ?? null,
+                'key' => $key,
+                'url' => $url, // CloudFront URL for better performance
+                'secure_url' => $url,
+                'etag' => trim($result['ETag'], '"'),
+                'size' => $file->getSize(),
+                'mime_type' => $file->getMimeType(),
                 'original_filename' => $file->getClientOriginalName(),
-                'mime_type' => $file->getMimeType()
+                'folder' => $folder,
+                'bucket' => $bucket
             ];
 
+        } catch (AwsException $e) {
+            Log::error('S3 upload failed: ' . $e->getMessage(), [
+                'file' => $file->getClientOriginalName(),
+                'folder' => $folder,
+                'aws_error_code' => $e->getAwsErrorCode(),
+                'aws_error_type' => $e->getAwsErrorType(),
+                'bucket' => $this->config['bucket'] ?? 'NOT_SET',
+                'region' => $this->config['region'] ?? 'NOT_SET'
+            ]);
+
+            throw new \Exception('File upload failed: ' . $e->getMessage());
         } catch (\Exception $e) {
             Log::error('File upload failed: ' . $e->getMessage(), [
                 'file' => $file->getClientOriginalName(),
-                'folder' => $folder
+                'folder' => $folder,
+                'bucket' => $this->config['bucket'] ?? 'NOT_SET'
             ]);
 
             throw new \Exception('File upload failed: ' . $e->getMessage());
@@ -120,24 +188,24 @@ class FileUploadService
     }
 
     /**
-     * Delete a file from Cloudinary
+     * Delete a file from S3
      *
-     * @param string $publicId
-     * @param string $resourceType
+     * @param string $key
      * @return bool
      */
-    public function deleteFile(string $publicId, string $resourceType = 'image'): bool
+    public function deleteFile(string $key): bool
     {
         try {
-            $result = $this->cloudinary->uploadApi()->destroy($publicId, [
-                'resource_type' => $resourceType
+            $result = $this->s3Client->deleteObject([
+                'Bucket' => $this->config['bucket'],
+                'Key' => $key
             ]);
 
-            return $result['result'] === 'ok';
-        } catch (\Exception $e) {
-            Log::error('File deletion failed: ' . $e->getMessage(), [
-                'public_id' => $publicId,
-                'resource_type' => $resourceType
+            return true;
+        } catch (AwsException $e) {
+            Log::error('S3 file deletion failed: ' . $e->getMessage(), [
+                'key' => $key,
+                'aws_error_code' => $e->getAwsErrorCode()
             ]);
 
             return false;
@@ -145,37 +213,330 @@ class FileUploadService
     }
 
     /**
-     * Generate transformed URL for an image
+     * Delete multiple files from S3
      *
-     * @param string $publicId
-     * @param string $transformation
-     * @return string
+     * @param array $keys
+     * @return array
      */
-    public function getTransformedUrl(string $publicId, string $transformation = 'medium'): string
+    public function deleteMultipleFiles(array $keys): array
     {
-        $transformConfig = $this->config['transformations'][$transformation] ?? $this->config['transformations']['medium'];
+        try {
+            $objects = array_map(function($key) {
+                return ['Key' => $key];
+            }, $keys);
 
-        return $this->cloudinary->image($publicId)
-            ->resize(Resize::fill($transformConfig['width'], $transformConfig['height']))
-            ->quality(Quality::auto())
-            ->toUrl();
+            $result = $this->s3Client->deleteObjects([
+                'Bucket' => $this->config['bucket'],
+                'Delete' => [
+                    'Objects' => $objects
+                ]
+            ]);
+
+            return [
+                'success' => true,
+                'deleted' => $result['Deleted'] ?? [],
+                'errors' => $result['Errors'] ?? []
+            ];
+        } catch (AwsException $e) {
+            Log::error('S3 bulk deletion failed: ' . $e->getMessage(), [
+                'keys' => $keys,
+                'aws_error_code' => $e->getAwsErrorCode()
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
     }
 
     /**
-     * Get multiple transformation URLs
+     * Generate presigned URL for temporary access
      *
-     * @param string $publicId
-     * @return array
+     * @param string $key
+     * @param string $expiration
+     * @return string
      */
-    public function getAllTransformations(string $publicId): array
+    public function getPresignedUrl(string $key, string $expiration = '+1 hour'): string
     {
-        $transformations = [];
+        try {
+            $command = $this->s3Client->getCommand('GetObject', [
+                'Bucket' => $this->config['bucket'],
+                'Key' => $key
+            ]);
+
+            $request = $this->s3Client->createPresignedRequest($command, $expiration);
+            
+            return (string) $request->getUri();
+        } catch (AwsException $e) {
+            Log::error('Failed to generate presigned URL: ' . $e->getMessage(), [
+                'key' => $key
+            ]);
+
+            throw new \Exception('Failed to generate download URL');
+        }
+    }
+
+    /**
+     * Get public URL - CloudFront if available, otherwise S3
+     *
+     * @param string $key
+     * @return string
+     */
+    public function getPublicUrl(string $key): string
+    {
+        if (!empty($this->config['cloudfront_url'])) {
+            $cloudfrontUrl = rtrim($this->config['cloudfront_url'], '/');
+            return $cloudfrontUrl . '/' . ltrim($key, '/');
+        }
         
-        foreach ($this->config['transformations'] as $name => $config) {
-            $transformations[$name] = $this->getTransformedUrl($publicId, $name);
+        // Fallback to S3 URL
+        return $this->s3Client->getObjectUrl($this->config['bucket'], $key);
+    }
+
+    /**
+     * Upload profile image with resizing
+     *
+     * @param UploadedFile $file
+     * @param int $userId
+     * @return array
+     * @throws \Exception
+     */
+    public function uploadProfileImage(UploadedFile $file, int $userId): array
+    {
+        // Validate that it's an image
+        if (!$this->isImageFile($file)) {
+            throw new \Exception('File must be an image');
         }
 
-        return $transformations;
+        // Create resized versions
+        $originalImage = Image::read($file->getPathname());
+        
+        // Create profile image (400x400)
+        $profileImage = clone $originalImage;
+        $profileImage->cover(400, 400);
+        
+        // Create thumbnail (150x150)
+        $thumbnailImage = clone $originalImage;
+        $thumbnailImage->cover(150, 150);
+
+        $filename = "profile_{$userId}_" . time();
+        
+        try {
+            // Upload original
+            $originalKey = $this->buildFileKey('profiles', $filename . '_original', 'jpg');
+            $this->uploadImageToS3($profileImage, $originalKey);
+
+            // Upload thumbnail
+            $thumbnailKey = $this->buildFileKey('profiles/thumbnails', $filename . '_thumb', 'jpg');
+            $this->uploadImageToS3($thumbnailImage, $thumbnailKey);
+
+            return [
+                'success' => true,
+                'original' => [
+                    'key' => $originalKey,
+                    'url' => $this->getPublicUrl($originalKey)
+                ],
+                'thumbnail' => [
+                    'key' => $thumbnailKey,
+                    'url' => $this->getPublicUrl($thumbnailKey)
+                ],
+                'filename' => $filename,
+                'original_name' => $file->getClientOriginalName()
+            ];
+        } catch (\Exception $e) {
+            throw new \Exception('Profile image upload failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Upload organization logo with resizing
+     *
+     * @param UploadedFile $file
+     * @param int $organizationId
+     * @return array
+     * @throws \Exception
+     */
+    public function uploadOrganizationLogo(UploadedFile $file, int $organizationId): array
+    {
+        // Validate that it's an image
+        if (!$this->isImageFile($file)) {
+            throw new \Exception('File must be an image');
+        }
+
+        $originalImage = Image::read($file->getPathname());
+        
+        // Resize logo (300x300 max, maintain aspect ratio)
+        $logoImage = clone $originalImage;
+        $logoImage->scaleDown(300, 300);
+
+        $filename = "org_logo_{$organizationId}_" . time();
+        
+        try {
+            $logoKey = $this->buildFileKey('organizations', $filename, 'png');
+            $this->uploadImageToS3($logoImage, $logoKey, 'png');
+
+            return [
+                'success' => true,
+                'key' => $logoKey,
+                'url' => $this->getPublicUrl($logoKey),
+                'filename' => $filename,
+                'original_name' => $file->getClientOriginalName()
+            ];
+        } catch (\Exception $e) {
+            throw new \Exception('Organization logo upload failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Generate thumbnail for existing image
+     *
+     * @param string $sourceKey
+     * @param string $thumbnailKey
+     * @return array
+     * @throws \Exception
+     */
+    public function generateThumbnail(string $sourceKey, string $thumbnailKey = null): array
+    {
+        try {
+            // Download original image
+            $result = $this->s3Client->getObject([
+                'Bucket' => $this->config['bucket'],
+                'Key' => $sourceKey
+            ]);
+
+            $imageData = $result['Body']->getContents();
+            $image = Image::read($imageData);
+            
+            // Create thumbnail
+            $thumbnail = $image->cover(150, 150);
+            
+            // Generate thumbnail key if not provided
+            if (!$thumbnailKey) {
+                $pathInfo = pathinfo($sourceKey);
+                $thumbnailKey = $pathInfo['dirname'] . '/thumbnails/' . $pathInfo['filename'] . '_thumb.' . $pathInfo['extension'];
+            }
+
+            $this->uploadImageToS3($thumbnail, $thumbnailKey);
+
+            return [
+                'success' => true,
+                'key' => $thumbnailKey,
+                'url' => $this->getPublicUrl($thumbnailKey)
+            ];
+        } catch (\Exception $e) {
+            throw new \Exception('Thumbnail generation failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Check if file exists in S3
+     *
+     * @param string $key
+     * @return bool
+     */
+    public function fileExists(string $key): bool
+    {
+        try {
+            $this->s3Client->headObject([
+                'Bucket' => $this->config['bucket'],
+                'Key' => $key
+            ]);
+            return true;
+        } catch (AwsException $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get file metadata
+     *
+     * @param string $key
+     * @return array|null
+     */
+    public function getFileMetadata(string $key): ?array
+    {
+        try {
+            $result = $this->s3Client->headObject([
+                'Bucket' => $this->config['bucket'],
+                'Key' => $key
+            ]);
+
+            return [
+                'key' => $key,
+                'size' => $result['ContentLength'],
+                'content_type' => $result['ContentType'],
+                'last_modified' => $result['LastModified'],
+                'etag' => trim($result['ETag'], '"'),
+                'metadata' => $result['Metadata'] ?? []
+            ];
+        } catch (AwsException $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Copy file within S3
+     *
+     * @param string $sourceKey
+     * @param string $destinationKey
+     * @return bool
+     */
+    public function copyFile(string $sourceKey, string $destinationKey): bool
+    {
+        try {
+            $this->s3Client->copyObject([
+                'Bucket' => $this->config['bucket'],
+                'CopySource' => $this->config['bucket'] . '/' . $sourceKey,
+                'Key' => $destinationKey
+            ]);
+
+            return true;
+        } catch (AwsException $e) {
+            Log::error('S3 file copy failed: ' . $e->getMessage(), [
+                'source' => $sourceKey,
+                'destination' => $destinationKey
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Test public access by trying to access a file
+     *
+     * @param string $key
+     * @return bool
+     */
+    public function testPublicAccess(string $key): bool
+    {
+        $url = $this->getPublicUrl($key);
+        
+        // Try to access the URL
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'HEAD',
+                'timeout' => 10
+            ]
+        ]);
+        
+        $headers = @get_headers($url, 1, $context);
+        return $headers && strpos($headers[0], '200') !== false;
+    }
+
+    /**
+     * Get multiple URLs at once (for efficiency)
+     *
+     * @param array $keys
+     * @return array
+     */
+    public function getMultipleUrls(array $keys): array
+    {
+        $urls = [];
+        foreach ($keys as $key) {
+            $urls[$key] = $this->getPublicUrl($key);
+        }
+        return $urls;
     }
 
     /**
@@ -186,27 +547,20 @@ class FileUploadService
      */
     protected function validateFile(UploadedFile $file): void
     {
-        // Check file size
-        if ($file->getSize() > $this->config['max_file_size']) {
+        // Check file size (default 10MB)
+        $maxSize = config('app.max_file_size', 10 * 1024 * 1024);
+        if ($file->getSize() > $maxSize) {
             throw new \Exception('File size exceeds maximum allowed size');
-        }
-
-        // Check file extension
-        $extension = strtolower($file->getClientOriginalExtension());
-        $allowedFormats = array_merge(
-            $this->config['allowed_formats']['images'],
-            $this->config['allowed_formats']['documents'],
-            $this->config['allowed_formats']['videos'],
-            $this->config['allowed_formats']['audio']
-        );
-
-        if (!in_array($extension, $allowedFormats)) {
-            throw new \Exception('File format not allowed');
         }
 
         // Check if file is valid
         if (!$file->isValid()) {
             throw new \Exception('Invalid file upload');
+        }
+
+        // Security check
+        if (!$this->isSecureFile($file)) {
+            throw new \Exception('File type not allowed for security reasons');
         }
     }
 
@@ -218,7 +572,6 @@ class FileUploadService
      */
     protected function generateFilename(UploadedFile $file): string
     {
-        $extension = $file->getClientOriginalExtension();
         $basename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
         $basename = Str::slug($basename);
         
@@ -226,172 +579,56 @@ class FileUploadService
     }
 
     /**
-     * Determine Cloudinary resource type based on file
+     * Build file key for S3
      *
-     * @param UploadedFile $file
-     * @return string
-     */
-    protected function getResourceType(UploadedFile $file): string
-    {
-        $extension = strtolower($file->getClientOriginalExtension());
-        
-        if (in_array($extension, $this->config['allowed_formats']['images'])) {
-            return 'image';
-        } elseif (in_array($extension, $this->config['allowed_formats']['videos'])) {
-            return 'video';
-        } else {
-            return 'raw'; // For documents and other files
-        }
-    }
-
-    /**
-     * Get file category based on extension
-     *
+     * @param string $folder
+     * @param string $filename
      * @param string $extension
      * @return string
      */
-    public function getFileCategory(string $extension): string
+    protected function buildFileKey(string $folder, string $filename, string $extension): string
     {
+        $folder = trim($folder, '/');
         $extension = strtolower($extension);
         
-        foreach ($this->config['allowed_formats'] as $category => $formats) {
-            if (in_array($extension, $formats)) {
-                return $category;
-            }
-        }
-        
-        return 'unknown';
+        return "{$folder}/{$filename}.{$extension}";
     }
 
     /**
-     * Upload profile image with specific transformations
+     * Upload processed image to S3
      *
-     * @param UploadedFile $file
-     * @param int $userId
-     * @return array
+     * @param mixed $image Intervention Image instance
+     * @param string $key
+     * @param string $format
+     * @return void
      * @throws \Exception
      */
-    public function uploadProfileImage(UploadedFile $file, int $userId): array
+    protected function uploadImageToS3($image, string $key, string $format = 'jpg'): void
     {
-        // Validate that it's an image
-        if (!in_array(strtolower($file->getClientOriginalExtension()), $this->config['allowed_formats']['images'])) {
-            throw new \Exception('File must be an image');
-        }
-
-        $filename = "profile_{$userId}_" . time();
+        $encodedImage = $image->encode($format, 90);
         
-        $uploadOptions = [
-            'folder' => $this->config['folders']['profiles'],
-            'public_id' => $filename,
-            'resource_type' => 'image',
-            'transformation' => [
-                'width' => 400,
-                'height' => 400,
-                'crop' => 'fill',
-                'gravity' => 'face',
-                'quality' => 'auto'
-            ],
-            'overwrite' => true
-        ];
-
-        $result = $this->cloudinary->uploadApi()->upload(
-            $file->getPathname(),
-            $uploadOptions
-        );
-
-        return [
-            'success' => true,
-            'public_id' => $result['public_id'],
-            'secure_url' => $result['secure_url'],
-            'url' => $result['url'],
-            'filename' => $filename,
-            'original_name' => $file->getClientOriginalName()
-        ];
+        $this->s3Client->putObject([
+            'Bucket' => $this->config['bucket'],
+            'Key' => $key,
+            'Body' => $encodedImage->toString(),
+            'ContentType' => "image/{$format}",
+            'CacheControl' => 'max-age=31536000', // 1 year cache
+        ]);
     }
 
     /**
-     * Upload organization logo with specific transformations
+     * Check if file is an image
      *
      * @param UploadedFile $file
-     * @param int $organizationId
-     * @return array
-     * @throws \Exception
+     * @return bool
      */
-    public function uploadOrganizationLogo(UploadedFile $file, int $organizationId): array
+    protected function isImageFile(UploadedFile $file): bool
     {
-        // Validate that it's an image
-        if (!in_array(strtolower($file->getClientOriginalExtension()), $this->config['allowed_formats']['images'])) {
-            throw new \Exception('File must be an image');
-        }
-
-        $filename = "org_logo_{$organizationId}_" . time();
+        $imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+        $extension = strtolower($file->getClientOriginalExtension());
         
-        $uploadOptions = [
-            'folder' => $this->config['folders']['organizations'],
-            'public_id' => $filename,
-            'resource_type' => 'image',
-            'transformation' => [
-                'width' => 300,
-                'height' => 300,
-                'crop' => 'fit',
-                'quality' => 'auto',
-                'format' => 'auto'
-            ],
-            'overwrite' => true
-        ];
-
-        $result = $this->cloudinary->uploadApi()->upload(
-            $file->getPathname(),
-            $uploadOptions
-        );
-
-        return [
-            'success' => true,
-            'public_id' => $result['public_id'],
-            'secure_url' => $result['secure_url'],
-            'url' => $result['url'],
-            'filename' => $filename,
-            'original_name' => $file->getClientOriginalName()
-        ];
-    }
-
-    /**
-     * Generate thumbnail for existing image
-     *
-     * @param string $publicId
-     * @return string
-     */
-    public function generateThumbnail(string $publicId): string
-    {
-        return $this->cloudinary->image($publicId)
-            ->resize(Resize::fill(150, 150))
-            ->quality(Quality::auto())
-            ->toUrl();
-    }
-
-    /**
-     * Get optimized image URL for different screen sizes
-     *
-     * @param string $publicId
-     * @param string $size
-     * @return string
-     */
-    public function getResponsiveImageUrl(string $publicId, string $size = 'medium'): string
-    {
-        $transformations = [
-            'small' => ['width' => 300, 'height' => 200],
-            'medium' => ['width' => 600, 'height' => 400],
-            'large' => ['width' => 1200, 'height' => 800],
-            'xlarge' => ['width' => 1920, 'height' => 1080]
-        ];
-
-        $transform = $transformations[$size] ?? $transformations['medium'];
-
-        return $this->cloudinary->image($publicId)
-            ->resize(Resize::limit($transform['width'], $transform['height']))
-            ->quality(Quality::auto())
-            ->format('auto')
-            ->toUrl();
+        return in_array($extension, $imageExtensions) && 
+               str_starts_with($file->getMimeType(), 'image/');
     }
 
     /**
@@ -404,7 +641,7 @@ class FileUploadService
     {
         // Check file extension
         $extension = strtolower($file->getClientOriginalExtension());
-        $dangerousExtensions = ['php', 'exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'js'];
+        $dangerousExtensions = ['php', 'exe', 'bat', 'cmd', 'com', 'pif', 'scr', 'vbs', 'js', 'html', 'htm'];
         
         if (in_array($extension, $dangerousExtensions)) {
             return false;
@@ -412,15 +649,96 @@ class FileUploadService
 
         // Check MIME type
         $mimeType = $file->getMimeType();
-        $allowedMimes = array_merge(
-            ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
-            ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-            ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-            ['text/plain', 'text/csv'],
-            ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo'],
-            ['audio/mpeg', 'audio/wav', 'audio/ogg']
-        );
+        $allowedMimes = [
+            // Images
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/svg+xml',
+            // Documents
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel', 
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/plain', 'text/csv',
+            // Videos
+            'video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+            // Audio
+            'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4'
+        ];
 
         return in_array($mimeType, $allowedMimes);
+    }
+
+    /**
+     * Get file category based on MIME type
+     *
+     * @param string $mimeType
+     * @return string
+     */
+    public function getFileCategory(string $mimeType): string
+    {
+        if (str_starts_with($mimeType, 'image/')) {
+            return 'images';
+        } elseif (str_starts_with($mimeType, 'video/')) {
+            return 'videos';
+        } elseif (str_starts_with($mimeType, 'audio/')) {
+            return 'audio';
+        } elseif (in_array($mimeType, [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'text/plain',
+            'text/csv'
+        ])) {
+            return 'documents';
+        }
+        
+        return 'unknown';
+    }
+
+    /**
+     * Get responsive image URLs for different screen sizes
+     *
+     * @param string $key
+     * @return array
+     */
+    public function getResponsiveUrls(string $key): array
+    {
+        // For now, return the same URL for all sizes
+        // You can implement image transformation service later if needed
+        $baseUrl = $this->getPublicUrl($key);
+        
+        return [
+            'small' => $baseUrl,
+            'medium' => $baseUrl,
+            'large' => $baseUrl,
+            'original' => $baseUrl
+        ];
+    }
+
+    /**
+     * Extract S3 key from various URL formats
+     *
+     * @param string $url
+     * @return string|null
+     */
+    public function extractKeyFromUrl(string $url): ?string
+    {
+        // Handle CloudFront URLs
+        if (strpos($url, 'cloudfront.net') !== false) {
+            $pattern = '/https:\/\/[^\/]+\.cloudfront\.net\/(.+)/';
+            if (preg_match($pattern, $url, $matches)) {
+                return $matches[1];
+            }
+        }
+        
+        // Handle direct S3 URLs
+        $pattern = '/https:\/\/[^\/]+\.amazonaws\.com\/(.+)/';
+        if (preg_match($pattern, $url, $matches)) {
+            return $matches[1];
+        }
+        
+        return null;
     }
 }

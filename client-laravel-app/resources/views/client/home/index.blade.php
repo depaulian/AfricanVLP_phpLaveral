@@ -44,7 +44,7 @@
             @if(isset($sliders) && $sliders->count() > 0)
                 @foreach($sliders as $index => $slider)
                 <div class="slide {{ $index === 0 ? 'active' : 'inactive' }} absolute inset-0 flex items-center justify-center"
-                     @if($slider->image) style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.3)), url('{{ asset('storage/sliders/' . $slider->image) }}'); background-size: cover; background-position: center;" @endif>
+                     @if($slider->image) style="background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.3)), url('{{ $slider->image_url }}'); background-size: cover; background-position: center;" @endif>
                     <div class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
                         <div class="animate-slide-up">
                             <h1 class="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">

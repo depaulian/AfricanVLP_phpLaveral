@@ -14,9 +14,6 @@ class PagesSeeder extends Seeder
      */
     public function run(): void
     {
-        // Clear existing pages (optional)
-        DB::table('pages')->truncate();
-
         $pages = [
             // Main Website Pages
             [
