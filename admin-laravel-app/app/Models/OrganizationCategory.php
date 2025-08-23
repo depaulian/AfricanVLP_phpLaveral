@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class InstitutionType extends Model
+class OrganizationCategory extends Model
 {
     protected $fillable = [
         'name',
@@ -18,15 +18,15 @@ class InstitutionType extends Model
     ];
 
     /**
-     * Get the organizations of this institution type.
+     * Get the organizations in this category.
      */
     public function organizations(): HasMany
     {
-        return $this->hasMany(Organization::class);
+        return $this->hasMany(Organization::class, 'organization_category_id');
     }
 
     /**
-     * Get active organizations of this institution type.
+     * Get active organizations in this category.
      */
     public function activeOrganizations(): HasMany
     {
@@ -34,7 +34,7 @@ class InstitutionType extends Model
     }
 
     /**
-     * Get verified organizations of this institution type.
+     * Get verified organizations in this category.
      */
     public function verifiedOrganizations(): HasMany
     {
@@ -42,7 +42,7 @@ class InstitutionType extends Model
     }
 
     /**
-     * Check if this institution type is active.
+     * Check if this category is active.
      */
     public function isActive(): bool
     {
@@ -50,7 +50,7 @@ class InstitutionType extends Model
     }
 
     /**
-     * Get organizations count for this institution type.
+     * Get organizations count for this category.
      */
     public function getOrganizationsCount(): int
     {
@@ -58,7 +58,7 @@ class InstitutionType extends Model
     }
 
     /**
-     * Get active organizations count for this institution type.
+     * Get active organizations count for this category.
      */
     public function getActiveOrganizationsCount(): int
     {
@@ -66,7 +66,7 @@ class InstitutionType extends Model
     }
 
     /**
-     * Get verified organizations count for this institution type.
+     * Get verified organizations count for this category.
      */
     public function getVerifiedOrganizationsCount(): int
     {
