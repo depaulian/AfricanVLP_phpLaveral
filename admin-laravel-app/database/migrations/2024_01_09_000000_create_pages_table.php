@@ -25,8 +25,7 @@ return new class extends Migration
             $table->json('settings')->nullable();
             $table->unsignedBigInteger('created_by')->nullable();
             $table->unsignedBigInteger('updated_by')->nullable();
-            $table->timestamp('created')->useCurrent();
-            $table->timestamp('modified')->useCurrent()->useCurrentOnUpdate();
+            $table->timestamps();
             $table->softDeletes();
 
             // Foreign keys
@@ -35,7 +34,6 @@ return new class extends Migration
 
             // Indexes
             $table->index(['status', 'slug']);
-            $table->index(['status', 'created']);
             $table->index(['created_by']);
             $table->index(['updated_by']);
         });

@@ -82,7 +82,7 @@ class NewsController extends Controller
         // Get filter options
         $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
         $regions = Region::select('id', 'name')->orderBy('name')->get();
-        $authors = User::select('id', 'name')->orderBy('name')->get();
+        $authors = User::select('id', 'first_name')->orderBy('first_name')->get();
 
         return response()->json([
             'success' => true,

@@ -79,8 +79,8 @@ Route::get('/news', [NewsController::class, 'publicIndex'])->name('news.public')
 Route::get('/news/{news}', [NewsController::class, 'publicShow'])->name('news.public.show');
 Route::get('/events', [EventController::class, 'publicIndex'])->name('events.public');
 Route::get('/events/{event}', [EventController::class, 'publicShow'])->name('events.public.show');
-Route::get('/blog', [BlogController::class, 'publicIndex'])->name('blog.public');
-Route::get('/blog/{blog}', [BlogController::class, 'publicShow'])->name('blog.public.show');
+Route::get('/public/blog', [BlogController::class, 'publicIndex'])->name('blog.public');
+Route::get('/public/blog/{blog}', [BlogController::class, 'publicShow'])->name('blog.public.show');
 Route::get('/opportunities', [OpportunityController::class, 'publicIndex'])->name('opportunities.public');
 Route::get('/opportunities/{opportunity}', [OpportunityController::class, 'publicShow'])->name('opportunities.public.show');
 Route::get('/resources', [ResourceController::class, 'publicIndex'])->name('resources.public');
