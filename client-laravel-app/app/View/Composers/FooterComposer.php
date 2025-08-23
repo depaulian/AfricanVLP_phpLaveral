@@ -13,7 +13,7 @@ class FooterComposer
     public function compose(View $view): void
     {
         // Get active resource types for footer links
-        $resourceTypes = ResourceType::where('status', 'active')
+        $resourceTypes = ResourceType::where('is_active', true)
             ->orderBy('name')
             ->get();
 

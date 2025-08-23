@@ -208,7 +208,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                 </svg>
                             </div>
-                            <a href="{{ route('pages.interactive-map') }}" class="text-decoration-none">
+                            <a href="#" class="text-decoration-none">
                                 <h4 class="mt-3 mb-3">Country Profiles</h4>
                                 <p class="text-muted">Explore detailed country profiles and discover volunteer opportunities by region.</p>
                             </a>
@@ -310,7 +310,7 @@
                             @else
                                 <div class="text-center py-5">
                                     <p class="text-muted">No opportunities available at the moment.</p>
-                                    <a href="{{ route('events.public') }}" class="btn btn-primary">Browse All Opportunities</a>
+                                    {{-- <a href="{{ route('events.public') }}" class="btn btn-primary">Browse All Opportunities</a> --}}
                                 </div>
                             @endif
                         </div>
@@ -365,7 +365,7 @@
                             @else
                                 <div class="text-center py-5">
                                     <p class="text-muted">No news available at the moment.</p>
-                                    <a href="{{ route('news.public') }}" class="btn btn-primary">Browse All News</a>
+                                    {{-- <a href="{{ route('news.public') }}" class="btn btn-primary">Browse All News</a> --}}
                                 </div>
                             @endif
                         </div>
@@ -415,7 +415,7 @@
                             @else
                                 <div class="text-center py-5">
                                     <p class="text-muted">No resources available at the moment.</p>
-                                    <a href="{{ route('resources.public') }}" class="btn btn-primary">Browse All Resources</a>
+                                    {{-- <a href="{{ route('resources.public') }}" class="btn btn-primary">Browse All Resources</a> --}}
                                 </div>
                             @endif
                         </div>
@@ -463,7 +463,7 @@
                             @else
                                 <div class="text-center py-5">
                                     <p class="text-muted">No blog posts available at the moment.</p>
-                                    <a href="{{ route('blog.public') }}" class="btn btn-primary">Browse All Blogs</a>
+                                    {{-- <a href="{{ route('blog.public') }}" class="btn btn-primary">Browse All Blogs</a> --}}
                                 </div>
                             @endif
                         </div>
@@ -492,7 +492,7 @@
                     </div>
                     <h3 class="text-2xl font-bold text-gray-900 mb-4">Individual Volunteer</h3>
                     <p class="text-gray-600 mb-6">Join as an individual volunteer and discover opportunities to make a meaningful impact in your community and across Africa.</p>
-                    <a href="{{ route('registration.volunteer') }}" 
+                    <a href="{{ route('registration.volunteer.start') }}" 
                        class="inline-block w-full bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition duration-300">
                         Register as Volunteer
                     </a>
