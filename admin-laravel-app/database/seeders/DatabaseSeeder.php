@@ -12,7 +12,11 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            BlogCategoriesSeeder::class,
+            OpportunityCategoriesSeeder::class,
             SuperAdminSeeder::class,
+            ContentTagsSeeder::class,
+            PageSeeder::class,
             // CakePHPDataSeeder::class, // Uncomment to seed CakePHP data
         ]);
     }
