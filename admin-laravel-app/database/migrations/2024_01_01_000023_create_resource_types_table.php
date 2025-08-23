@@ -11,10 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('institution_types', function (Blueprint $table) {
+        Schema::create('resource_types', function (Blueprint $table) {
             $table->id();
             $table->string('name', 255);
             $table->text('description')->nullable();
+            $table->json('file_extensions')->nullable();
+            $table->unsignedBigInteger('max_file_size')->nullable();
+            $table->string('icon', 100)->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
@@ -25,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('institution_types');
+        Schema::dropIfExists('resource_types');
     }
 };

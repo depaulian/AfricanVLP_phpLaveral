@@ -15,9 +15,13 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('organization_id')->nullable();
             $table->unsignedBigInteger('region_id')->nullable();
+            $table->unsignedBigInteger('news_category_id')->nullable();
             $table->string('title', 500)->nullable();
+            $table->string('slug', 500)->unique(); // Added slug field
+            $table->text('excerpt')->nullable(); // Added excerpt field
             $table->text('description')->nullable();
             $table->longText('content')->nullable();
+            $table->string('featured_image', 255)->nullable(); // Added featured_image field
             $table->string('image', 255)->nullable();
             $table->enum('status', ['published', 'draft', 'archived'])->default('draft');
             $table->boolean('is_featured')->default(false);
@@ -29,10 +33,12 @@ return new class extends Migration
             
             $table->foreign('organization_id')->references('id')->on('organizations')->onDelete('set null');
             $table->foreign('region_id')->references('id')->on('regions')->onDelete('set null');
+            $table->foreign('news_category_id')->references('id')->on('news_categories')->onDelete('set null');
             
             $table->index(['status', 'published_at']);
             $table->index(['organization_id', 'status']);
-            $table->fullText(['title', 'description', 'content']);
+            $table->index('slug'); // Added slug index
+            $table->fullText(['title', 'excerpt', 'description', 'content']);
         });
     }
 

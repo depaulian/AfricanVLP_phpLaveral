@@ -4,15 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Event extends Model
 {
-
-
     protected $fillable = [
         'organization_id',
         'title',
+        'slug',
         'description',
         'content',
         'start_date',
@@ -45,6 +44,40 @@ class Event extends Model
         'current_participants' => 'integer',
         'is_featured' => 'boolean',
     ];
+
+    // Boot method to generate slug
+    protected static function boot()
+    {
+        parent::boot();
+        
+        static::creating(function ($event) {
+            if (empty($event->slug)) {
+                $event->slug = Str::slug($event->title);
+                
+                // Ensure unique slug
+                $originalSlug = $event->slug;
+                $count = 1;
+                while (static::where('slug', $event->slug)->exists()) {
+                    $event->slug = $originalSlug . '-' . $count;
+                    $count++;
+                }
+            }
+        });
+
+        static::updating(function ($event) {
+            if ($event->isDirty('title') && empty($event->slug)) {
+                $event->slug = Str::slug($event->title);
+                
+                // Ensure unique slug
+                $originalSlug = $event->slug;
+                $count = 1;
+                while (static::where('slug', $event->slug)->where('id', '!=', $event->id)->exists()) {
+                    $event->slug = $originalSlug . '-' . $count;
+                    $count++;
+                }
+            }
+        });
+    }
 
     /**
      * Get the organization that owns the event.
@@ -133,5 +166,61 @@ class Event extends Model
     public function getImageUrlAttribute(): ?string
     {
         return $this->image ? asset('storage/events/' . $this->image) : null;
+    }
+
+    /**
+     * Get the route key name for model binding.
+     */
+    public function getRouteKeyName()
+    {
+        return 'slug';
+    }
+
+    /**
+     * Get the event URL.
+     */
+    public function getUrl()
+    {
+        return route('events.show', $this->slug);
+    }
+
+    /**
+     * Get the admin URL.
+     */
+    public function getAdminUrl()
+    {
+        return route('admin.events.show', $this->id);
+    }
+
+    /**
+     * Scope to get active events.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    /**
+     * Scope to get featured events.
+     */
+    public function scopeFeatured($query)
+    {
+        return $query->where('is_featured', true);
+    }
+
+    /**
+     * Scope to get upcoming events.
+     */
+    public function scopeUpcoming($query)
+    {
+        return $query->where('start_date', '>', now());
+    }
+
+    /**
+     * Scope to get events by organization.
+     */
+    public function scopeByOrganization($query, $organizationId)
+    {
+        return $query->where('organization_id', $organizationId);
     }
 }

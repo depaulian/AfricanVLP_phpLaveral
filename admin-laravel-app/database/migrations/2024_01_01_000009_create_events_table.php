@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('organization_id')->nullable();
             $table->string('title', 500)->nullable();
+            $table->string('slug', 500)->unique();
             $table->text('description')->nullable();
             $table->text('content')->nullable();
             $table->datetime('start_date')->nullable();
@@ -43,6 +44,7 @@ return new class extends Migration
             
             $table->index(['start_date', 'status']);
             $table->index(['organization_id', 'status']);
+            $table->index('slug');
         });
     }
 

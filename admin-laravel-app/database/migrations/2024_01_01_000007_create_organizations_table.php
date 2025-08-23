@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('organizations', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('organization_type_id')->nullable();
             $table->string('name', 255);
             $table->text('description')->nullable();
             $table->string('email', 100)->nullable();
@@ -22,10 +21,12 @@ return new class extends Migration
             $table->text('address')->nullable();
             $table->unsignedBigInteger('city_id')->nullable();
             $table->unsignedBigInteger('country_id')->nullable();
-            $table->unsignedBigInteger('category_id')->nullable();
+            $table->unsignedBigInteger('organization_category_id')->nullable();
             $table->unsignedBigInteger('institution_type_id')->nullable();
             $table->string('logo', 255)->nullable();
             $table->enum('status', ['active', 'inactive', 'pending', 'suspended'])->default('pending');
+            $table->boolean('is_verified')->default(false);
+            $table->boolean('is_featured')->default(false);
             $table->string('facebook_url', 255)->nullable();
             $table->string('twitter_url', 255)->nullable();
             $table->string('linkedin_url', 255)->nullable();
@@ -36,13 +37,17 @@ return new class extends Migration
             $table->integer('employee_count')->nullable();
             $table->timestamps();
             
+            // Indexes (matching your schema)
+            $table->index('city_id', 'organizations_city_id_foreign');
+            $table->index('country_id', 'organizations_country_id_foreign');
+            $table->index('organization_category_id', 'organizations_category_id_foreign');
+            $table->index('institution_type_id', 'organizations_institution_type_id_foreign');
+            
+            // Foreign key constraints
             $table->foreign('city_id')->references('id')->on('cities')->onDelete('set null');
             $table->foreign('country_id')->references('id')->on('countries')->onDelete('set null');
-            $table->foreign('category_id')->references('id')->on('category_of_organizations')->onDelete('set null');
+            $table->foreign('organization_category_id')->references('id')->on('organization_categories')->onDelete('set null');
             $table->foreign('institution_type_id')->references('id')->on('institution_types')->onDelete('set null');
-            
-            $table->index(['name', 'status']);
-            $table->index(['country_id', 'city_id']);
         });
     }
 
