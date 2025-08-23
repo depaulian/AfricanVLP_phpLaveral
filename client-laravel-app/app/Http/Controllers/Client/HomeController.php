@@ -220,29 +220,31 @@ class HomeController extends Controller
     {
         $data = [
             'news' => News::where('status', 'published')
-                ->where('featured', true)
+                ->where('is_featured', true)
+                ->where('published_at', '<=', now())
                 ->orderBy('published_at', 'desc')
                 ->limit(3)
-                ->get(['id', 'title', 'excerpt', 'featured_image', 'slug', 'published_at']),
+                ->get(['id', 'title', 'slug', 'excerpt', 'description', 'featured_image', 'image', 'published_at', 'author']),
             
             'events' => Event::where('status', 'active')
-                ->where('featured', true)
+                ->where('is_featured', true)
                 ->where('start_date', '>', now())
                 ->orderBy('start_date')
                 ->limit(3)
-                ->get(['id', 'title', 'description', 'start_date', 'location', 'slug']),
+                ->get(['id', 'title', 'slug', 'description', 'start_date', 'end_date', 'location', 'image']),
             
             'resources' => Resource::where('status', 'published')
                 ->where('featured', true)
-                ->orderBy('views', 'desc')
+                ->orderBy('view_count', 'desc')
                 ->limit(3)
-                ->get(['id', 'title', 'description', 'slug', 'views', 'downloads']),
+                ->get(['id', 'title', 'description', 'view_count', 'download_count', 'published_date', 'author']),
 
             'blogs' => Blog::where('status', 'published')
-                ->where('featured', true)
+                ->where('is_featured', true)
+                ->where('published_at', '<=', now())
                 ->orderBy('published_at', 'desc')
                 ->limit(3)
-                ->get(['id', 'title', 'content', 'featured_image', 'slug', 'published_at']),
+                ->get(['id', 'title', 'slug', 'excerpt', 'featured_image', 'published_at', 'reading_time', 'views_count']),
         ];
 
         // Also include featured organizations so the Blade can render them under featured_content
@@ -261,7 +263,7 @@ class HomeController extends Controller
         $totalEvents = Event::where('status', 'active')->count();
         $totalResources = Resource::where('status', 'published')->count();
         $upcomingEvents = Event::where('status', 'active')->where('start_date', '>', now())->count();
-        $activeVolunteers = \App\Models\User::where('status', 'active')->whereNotNull('volunteering_interests')->count();
+        $activeVolunteers = \App\Models\User::where('status', 'active')->whereNotNull('volunteer_notification_preferences')->count();
 
         // Preserve original keys and add the ones expected by the Blade
         return [
@@ -291,7 +293,7 @@ class HomeController extends Controller
             ->limit(6)
             ->get([
                 'id', 'title', 'excerpt', 'featured_image', 'slug',
-                'published_at', 'views'
+                'published_at', 'views_count'
             ]);
     }
 
@@ -317,13 +319,15 @@ class HomeController extends Controller
     private function getFeaturedOrganizations()
     {
         return Organization::where('status', 'active')
-            ->where('featured', true)
+            ->where('is_verified', true)
+            ->where('is_featured', true)
             ->withCount(['users', 'events'])
+            ->with(['city', 'country', 'category'])
             ->orderBy('users_count', 'desc')
             ->limit(6)
             ->get([
-                'id', 'name', 'description', 'logo', 'category',
-                'location', 'slug'
+                'id', 'name', 'description', 'logo', 'organization_category_id',
+                'city_id', 'country_id', 'established_year', 'website'
             ]);
     }
 

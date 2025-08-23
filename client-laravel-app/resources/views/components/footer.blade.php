@@ -141,10 +141,10 @@
                         <div x-show="open" @click.away="open = false" 
                              class="absolute bottom-full right-0 mb-2 w-32 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
                             <div class="py-1">
-                                <a href="{{ route('language.switch', 'en') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">English</a>
-                                <a href="{{ route('language.switch', 'fr') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Français</a>
-                                <a href="{{ route('language.switch', 'ar') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">العربية</a>
-                                <a href="{{ route('language.switch', 'pt') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Português</a>
+                                <a href="{{ route('language.set', 'en') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">English</a>
+                                <a href="{{ route('language.set', 'fr') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Français</a>
+                                <a href="{{ route('language.set', 'ar') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">العربية</a>
+                                <a href="{{ route('language.set', 'pt') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Português</a>
                             </div>
                         </div>
                     </div>
