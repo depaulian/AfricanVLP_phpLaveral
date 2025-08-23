@@ -3,19 +3,16 @@
       <div class="flex justify-between items-center h-20">
           <!-- Logo -->
           <div class="flex items-center space-x-4">
-              <div class="w-12 h-12 bg-gradient-to-br from-green-600 to-green-800 rounded-xl flex items-center justify-center shadow-lg">
-                  <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                  </svg>
-              </div>
+            <div class="">
+              <img src="{{ asset('img/au-logo.svg') }}" alt="AU Logo" class="h-20">
+           </div>
               <div>
-                  <h1 class="text-xl font-bold text-gray-900">AU-VLP</h1>
                   <p class="text-sm text-gray-500">Volunteer Leadership Platform</p>
               </div>
           </div>
           
           <!-- Navigation Links - Desktop -->
-          <div class="hidden lg:flex items-center space-x-8">
+          <div class="hidden lg:flex items-center space-x-4">
               <!-- Home -->
               <a href="{{ route('home') }}" 
                  class="relative px-4 py-2 text-gray-700 hover:text-green-600 font-medium transition-all duration-300 group {{ request()->routeIs('home') ? 'text-green-600' : '' }}">
@@ -164,7 +161,7 @@
           </div>
           
           <!-- User Menu / Auth Buttons -->
-          <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-3">
               @auth
                   <!-- Notifications -->
                   <div class="relative">
@@ -255,23 +252,25 @@
                       </div>
                   </div>
               @else
-                  <!-- Sign In Button -->
-                  <a href="{{ route('login') }}" 
-                     class="text-gray-600 hover:text-green-600 font-medium transition-colors">
-                      Sign In
-                  </a>
-                  
-                  <!-- Join Button -->
-                  <a href="{{ route('registration.index') }}" 
-                     class="bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-2.5 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-                      Join AU-VLP
-                  </a>
+                  <!-- Sign In Button - Enhanced -->
+                  <div class="flex space-x-4">
+                    <div class="inline-flex space-x-4">
+                      <a href="{{ route('login') }}" 
+                         class="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-green-600 to-green-700 text-white px-8 py-2.5 font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 whitespace-nowrap">
+                          Sign In
+                      </a>
+                      <a href="{{ route('registration.index') }}" 
+                         class="inline-flex items-center justify-center rounded-2xl bg-yellow-400 text-black px-8 py-4 font-semibold text-lg hover:bg-yellow-300 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 whitespace-nowrap">
+                          Join
+                      </a>
+                  </div>
+                </div>
               @endauth
           </div>
           
           <!-- Mobile menu button -->
-          <div class="lg:hidden flex items-center">
-              <button type="button" id="mobile-menu-button" class="p-2 text-gray-600 hover:text-green-600 transition-colors">
+          <div class="lg:hidden flex items-center ml-4">
+              <button type="button" id="mobile-menu-button" class="p-2 text-gray-600 hover:text-green-600 transition-colors rounded-lg hover:bg-gray-100">
                   <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" id="menu-icon">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                   </svg>
@@ -340,19 +339,23 @@
               
               <!-- Mobile Auth Section -->
               @guest
-              <div class="border-t border-gray-200 mt-4 pt-4">
+              <div class="border-t border-gray-200 mt-4 pt-4 space-y-3">
+                  <!-- Mobile Sign In - Enhanced -->
                   <a href="{{ route('login') }}" 
-                     class="block px-4 py-3 text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors rounded-xl">
-                      <div class="flex items-center">
-                          <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
-                          </svg>
-                          Sign In
-                      </div>
+                     class="flex items-center justify-center w-full px-4 py-3 text-gray-700 hover:text-green-600 font-medium transition-all duration-300 rounded-xl border-2 border-gray-200 hover:border-green-200 hover:bg-green-50">
+                      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+                      </svg>
+                      Sign In
                   </a>
+                  
+                  <!-- Mobile Join Button - Enhanced -->
                   <a href="{{ route('registration.index') }}" 
-                     class="block mt-2 bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-3 rounded-xl font-semibold text-center transition-all">
-                      Join AU-VLP
+                     class="flex items-center justify-center w-full bg-gradient-to-r from-green-600 to-green-700 text-white px-4 py-3 rounded-xl font-semibold text-center transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 hover:from-green-700 hover:to-green-800">
+                      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                      </svg>
+                      Join Now
                   </a>
               </div>
               @else

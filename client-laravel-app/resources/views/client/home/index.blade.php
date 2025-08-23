@@ -312,7 +312,7 @@
                     </div>
                     @if($upcoming_events->count() > 6)
                     <div class="text-center mt-12">
-                        <a href="#" 
+                        <a href="{{ route('events.public') }}" 
                            class="bg-green-600 text-white px-8 py-4 rounded-2xl font-semibold hover:bg-green-700 transition-colors inline-flex items-center">
                             View All Opportunities
                             <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

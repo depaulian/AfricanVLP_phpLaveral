@@ -460,3 +460,4 @@ class SliderController extends Controller
         Cache::forget('homepage_sliders');
         Cache::tags(['sliders', 'pages'])->flush();
     }
+}
