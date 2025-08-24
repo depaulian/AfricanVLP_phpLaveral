@@ -5,7 +5,7 @@ orbs:
   aws-cli: circleci/aws-cli@3.1
 
 jobs:
-  build-and-test:
+  build-and-test-admin:
     description: Setup African Universities VLP Admin and run tests
     docker:
       - image: cimg/php:8.2-browsers
@@ -22,27 +22,22 @@ jobs:
           MYSQL_ROOT_PASSWORD: secret
           MYSQL_DATABASE: a
           MYSQL_ALLOW_EMPTY_PASSWORD: true
-
     working_directory: ~/AfricanVLP_phpLaveral/admin-laravel-app
     steps:
       - checkout:
           path: ~/AfricanVLP_phpLaveral/
-
       - run:
           name: "Prepare environment"
           command: |
             sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E88979FB9B30ACF2
             sudo apt update
-
       - restore_cache:
           keys:
             - v1-dependencies-{{ checksum "composer.json" }}
             - v1-dependencies-
-
       - run:
           name: "Install dependencies"
           command: composer install
-
       - restore_cache:
           keys:
             - v1-node-dependencies-{{ checksum "package.json" }}
@@ -55,80 +50,92 @@ jobs:
       - run:
           name: "Install Node.js dependencies"
           command: npm install
-
       - save_cache:
           key: v1-node-dependencies-{{ checksum "package.json" }}
           paths:
             - ./node_modules
-
       - run:
           name: "Build Vite assets"
           command: npm run build
-
       - save_cache:
           key: v1-dependencies-{{ checksum "composer.json" }}
           paths:
             - ./vendor
-
       - run:
           name: "Create .env file and generate app key"
           command: |
             mv .env.ci .env
             php artisan key:generate
-
       # - run:
-      #     name: "Run tests" will uncomment when all tests are ready
+      #     name: "Run tests"
       #     command: php vendor/bin/phpunit
 
-  build-docker-image-staging:
-      executor:
-        name: docker/docker
-        tag: "3.6"
-      working_directory: ~/AfricanVLP_phpLaveral/admin-laravel-app
-      steps:
-        - checkout:
-            path: ~/AfricanVLP_phpLaveral/
-        - aws-cli/setup
-        - docker/install-docker-tools
-        - setup_remote_docker:
-            version: docker24
-            docker_layer_caching: true
-        - run:
-            name: "Prepare Environment Variables"
-            command: |
-              # Only update the specific variables that need dynamic configuration
-              # App Configuration
-              sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env.example
-              sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env.example
-              sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8081|" .env.example
-              sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8081|" .env.example
-              
-              # Database Configuration
-              sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_STAGING}|" .env.example
-              sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_STAGING}|" .env.example
-              sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_STAGING}|" .env.example
-              sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_STAGING}\"|" .env.example
-              
-              # Redis Configuration
-              sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env.example
-              sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env.example
-              sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env.example
-              
-              cp .env.example .env
-        - run:
-            name: "Login to AWS ECR"
-            command: |
-              aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-        - run:
-            name: "Build Docker image for Staging"
-            command: |
-              docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpadmin:staging-${CIRCLE_SHA1:0:11} .
-        - run:
-            name: "Push Docker image to AWS ECR"
-            command: |
-              docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpadmin:staging-${CIRCLE_SHA1:0:11}
+  build-and-test-client:
+    description: Setup African Universities VLP Client and run tests
+    docker:
+      - image: cimg/php:8.2-browsers
+        environment:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: chip
+          DB_USERNAME: root
+          DB_PASSWORD: secret
+      - image: mysql:8.0
+        environment:
+          MYSQL_ROOT_PASSWORD: secret
+          MYSQL_DATABASE: a
+          MYSQL_ALLOW_EMPTY_PASSWORD: true
+    working_directory: ~/AfricanVLP_phpLaveral/client-laravel-app
+    steps:
+      - checkout:
+          path: ~/AfricanVLP_phpLaveral/
+      - run:
+          name: "Prepare environment"
+          command: |
+            sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E88979FB9B30ACF2
+            sudo apt update
+      - restore_cache:
+          keys:
+            - v1-client-dependencies-{{ checksum "composer.json" }}
+            - v1-client-dependencies-
+      - run:
+          name: "Install dependencies"
+          command: composer install
+      - restore_cache:
+          keys:
+            - v1-client-node-dependencies-{{ checksum "package.json" }}
+            - v1-client-node-dependencies-
+      - run:
+          name: "Install Node.js and NPM"
+          command: |
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+      - run:
+          name: "Install Node.js dependencies"
+          command: npm install
+      - save_cache:
+          key: v1-client-node-dependencies-{{ checksum "package.json" }}
+          paths:
+            - ./node_modules
+      - run:
+          name: "Build Vite assets"
+          command: npm run build
+      - save_cache:
+          key: v1-client-dependencies-{{ checksum "composer.json" }}
+          paths:
+            - ./vendor
+      - run:
+          name: "Create .env file and generate app key"
+          command: |
+            mv .env.ci .env
+            php artisan key:generate
+      # - run:
+      #     name: "Run tests"
+      #     command: php vendor/bin/phpunit
 
-  build-docker-image-production:
+  build-docker-image-admin-staging:
     executor:
       name: docker/docker
       tag: "3.6"
@@ -144,31 +151,148 @@ jobs:
       - run:
           name: "Prepare Environment Variables"
           command: |
-            # Only update the specific variables that need dynamic configuration
-             # App Configuration
             sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env.example
             sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env.example
-            sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8080|" .env.example
-            sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8080|" .env.example
-            
-            # Database Configuration
-            sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_PROD}|" .env.example
-            sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_PROD}|" .env.example
-            sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_PROD}|" .env.example
-            sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_PROD}\"|" .env.example
-            
-            # Redis Configuration
+            sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8081|" .env.example
+            sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8081|" .env.example
+            sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_STAGING}|" .env.example
+            sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_STAGING}|" .env.example
+            sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_STAGING}|" .env.example
+            sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_STAGING}\"|" .env.example
             sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env.example
             sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env.example
             sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env.example
-            
+            sed -i "s|^MAIL_MAILER=.*|MAIL_MAILER=${MAIL_MAILER}|" .env.example
+            sed -i "s|^MAIL_HOST=.*|MAIL_HOST=${MAIL_HOST}|" .env.example
+            sed -i "s|^MAIL_PORT=.*|MAIL_PORT=${MAIL_PORT}|" .env.example
+            sed -i "s|^MAIL_USERNAME=.*|MAIL_USERNAME=${MAIL_USERNAME}|" .env.example
+            sed -i "s|^MAIL_PASSWORD=.*|MAIL_PASSWORD=\"${MAIL_PASSWORD}\"|" .env.example
+            sed -i "s|^MAIL_ENCRYPTION=.*|MAIL_ENCRYPTION=tls|" .env.example
+            sed -i "s|^MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}|" .env.example
+            sed -i "s|^MAIL_FROM_NAME=.*|MAIL_FROM_NAME=\"African Universities VLP\"|" .env.example
+            sed -i "s|^AWS_ACCESS_KEY_ID=.*|AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}|" .env.example
+            sed -i "s|^AWS_SECRET_ACCESS_KEY=.*|AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}|" .env.example
+            sed -i "s|^AWS_DEFAULT_REGION=.*|AWS_DEFAULT_REGION=${AWS_REGION}|" .env.example
+            sed -i "s|^AWS_BUCKET=.*|AWS_BUCKET=${AWS_BUCKET}|" .env.example
+            sed -i "s|^AWS_USE_PATH_STYLE_ENDPOINT=.*|AWS_USE_PATH_STYLE_ENDPOINT=${AWS_USE_PATH_STYLE_ENDPOINT}|" .env.example
+            sed -i "s|^AWS_CLOUDFRONT_URL=.*|AWS_CLOUDFRONT_URL=${AWS_CLOUDFRONT_URL}|" .env.example
             cp .env.example .env
       - run:
           name: "Login to AWS ECR"
           command: |
             aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
       - run:
-          name: "Build Docker image for Production"
+          name: "Build Docker image for Admin Staging"
+          command: |
+            docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpadmin:staging-${CIRCLE_SHA1:0:11} .
+      - run:
+          name: "Push Docker image to AWS ECR"
+          command: |
+            docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpadmin:staging-${CIRCLE_SHA1:0:11}
+
+  build-docker-image-client-staging:
+    executor:
+      name: docker/docker
+      tag: "3.6"
+    working_directory: ~/AfricanVLP_phpLaveral/client-laravel-app
+    steps:
+      - checkout:
+          path: ~/AfricanVLP_phpLaveral/
+      - aws-cli/setup
+      - docker/install-docker-tools
+      - setup_remote_docker:
+          version: docker24
+          docker_layer_caching: true
+      - run:
+          name: "Prepare Environment Variables"
+          command: |
+            sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env.example
+            sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env.example
+            sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8082|" .env.example
+            sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8082|" .env.example
+            sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_STAGING}|" .env.example
+            sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_STAGING}|" .env.example
+            sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_STAGING}|" .env.example
+            sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_STAGING}\"|" .env.example
+            sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env.example
+            sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env.example
+            sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env.example
+            sed -i "s|^MAIL_MAILER=.*|MAIL_MAILER=${MAIL_MAILER}|" .env.example
+            sed -i "s|^MAIL_HOST=.*|MAIL_HOST=${MAIL_HOST}|" .env.example
+            sed -i "s|^MAIL_PORT=.*|MAIL_PORT=${MAIL_PORT}|" .env.example
+            sed -i "s|^MAIL_USERNAME=.*|MAIL_USERNAME=${MAIL_USERNAME}|" .env.example
+            sed -i "s|^MAIL_PASSWORD=.*|MAIL_PASSWORD=\"${MAIL_PASSWORD}\"|" .env.example
+            sed -i "s|^MAIL_ENCRYPTION=.*|MAIL_ENCRYPTION=tls|" .env.example
+            sed -i "s|^MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}|" .env.example
+            sed -i "s|^MAIL_FROM_NAME=.*|MAIL_FROM_NAME=\"African Universities VLP\"|" .env.example
+            sed -i "s|^AWS_ACCESS_KEY_ID=.*|AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}|" .env.example
+            sed -i "s|^AWS_SECRET_ACCESS_KEY=.*|AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}|" .env.example
+            sed -i "s|^AWS_DEFAULT_REGION=.*|AWS_DEFAULT_REGION=${AWS_REGION}|" .env.example
+            sed -i "s|^AWS_BUCKET=.*|AWS_BUCKET=${AWS_BUCKET}|" .env.example
+            sed -i "s|^AWS_USE_PATH_STYLE_ENDPOINT=.*|AWS_USE_PATH_STYLE_ENDPOINT=${AWS_USE_PATH_STYLE_ENDPOINT}|" .env.example
+            sed -i "s|^AWS_CLOUDFRONT_URL=.*|AWS_CLOUDFRONT_URL=${AWS_CLOUDFRONT_URL}|" .env.example
+            cp .env.example .env
+      - run:
+          name: "Login to AWS ECR"
+          command: |
+            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+      - run:
+          name: "Build Docker image for Client Staging"
+          command: |
+            docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpclient:staging-${CIRCLE_SHA1:0:11} .
+      - run:
+          name: "Push Docker image to AWS ECR"
+          command: |
+            docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpclient:staging-${CIRCLE_SHA1:0:11}
+
+  build-docker-image-admin-production:
+    executor:
+      name: docker/docker
+      tag: "3.6"
+    working_directory: ~/AfricanVLP_phpLaveral/admin-laravel-app
+    steps:
+      - checkout:
+          path: ~/AfricanVLP_phpLaveral/
+      - aws-cli/setup
+      - docker/install-docker-tools
+      - setup_remote_docker:
+          version: docker24
+          docker_layer_caching: true
+      - run:
+          name: "Prepare Environment Variables"
+          command: |
+            sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env.example
+            sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env.example
+            sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8080|" .env.example
+            sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8080|" .env.example
+            sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_PROD}|" .env.example
+            sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_PROD}|" .env.example
+            sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_PROD}|" .env.example
+            sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_PROD}\"|" .env.example
+            sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env.example
+            sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env.example
+            sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env.example
+            sed -i "s|^MAIL_MAILER=.*|MAIL_MAILER=${MAIL_MAILER}|" .env.example
+            sed -i "s|^MAIL_HOST=.*|MAIL_HOST=${MAIL_HOST}|" .env.example
+            sed -i "s|^MAIL_PORT=.*|MAIL_PORT=${MAIL_PORT}|" .env.example
+            sed -i "s|^MAIL_USERNAME=.*|MAIL_USERNAME=${MAIL_USERNAME}|" .env.example
+            sed -i "s|^MAIL_PASSWORD=.*|MAIL_PASSWORD=\"${MAIL_PASSWORD}\"|" .env.example
+            sed -i "s|^MAIL_ENCRYPTION=.*|MAIL_ENCRYPTION=tls|" .env.example
+            sed -i "s|^MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}|" .env.example
+            sed -i "s|^MAIL_FROM_NAME=.*|MAIL_FROM_NAME=\"African Universities VLP\"|" .env.example
+            sed -i "s|^AWS_ACCESS_KEY_ID=.*|AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}|" .env.example
+            sed -i "s|^AWS_SECRET_ACCESS_KEY=.*|AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}|" .env.example
+            sed -i "s|^AWS_DEFAULT_REGION=.*|AWS_DEFAULT_REGION=${AWS_REGION}|" .env.example
+            sed -i "s|^AWS_BUCKET=.*|AWS_BUCKET=${AWS_BUCKET}|" .env.example
+            sed -i "s|^AWS_USE_PATH_STYLE_ENDPOINT=.*|AWS_USE_PATH_STYLE_ENDPOINT=${AWS_USE_PATH_STYLE_ENDPOINT}|" .env.example
+            sed -i "s|^AWS_CLOUDFRONT_URL=.*|AWS_CLOUDFRONT_URL=${AWS_CLOUDFRONT_URL}|" .env.example
+            cp .env.example .env
+      - run:
+          name: "Login to AWS ECR"
+          command: |
+            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+      - run:
+          name: "Build Docker image for Admin Production"
           command: |
             docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpadmin:prod-${CIRCLE_SHA1:0:11} .
       - run:
@@ -176,18 +300,84 @@ jobs:
           command: |
             docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpadmin:prod-${CIRCLE_SHA1:0:11}
 
+  build-docker-image-client-production:
+    executor:
+      name: docker/docker
+      tag: "3.6"
+    working_directory: ~/AfricanVLP_phpLaveral/client-laravel-app
+    steps:
+      - checkout:
+          path: ~/AfricanVLP_phpLaveral/
+      - aws-cli/setup
+      - docker/install-docker-tools
+      - setup_remote_docker:
+          version: docker24
+          docker_layer_caching: true
+      - run:
+          name: "Prepare Environment Variables"
+          command: |
+            sed -i "s|^APP_ENV=.*|APP_ENV=production|" .env.example
+            sed -i "s|^APP_DEBUG=.*|APP_DEBUG=false|" .env.example
+            sed -i "s|^APP_URL=.*|APP_URL=http://13.53.132.15:8083|" .env.example
+            sed -i "s|^ASSET_URL=.*|ASSET_URL=http://13.53.132.15:8083|" .env.example
+            sed -i "s|^DB_HOST=.*|DB_HOST=${DB_HOST_PROD}|" .env.example
+            sed -i "s|^DB_DATABASE=.*|DB_DATABASE=${DB_DATABASE_PROD}|" .env.example
+            sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USERNAME_PROD}|" .env.example
+            sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=\"${DB_PASSWORD_PROD}\"|" .env.example
+            sed -i "s|^REDIS_HOST=.*|REDIS_HOST=${ELASTICACHE_HOST}|" .env.example
+            sed -i "s|^REDIS_PORT=.*|REDIS_PORT=6379|" .env.example
+            sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=null|" .env.example
+            sed -i "s|^MAIL_MAILER=.*|MAIL_MAILER=${MAIL_MAILER}|" .env.example
+            sed -i "s|^MAIL_HOST=.*|MAIL_HOST=${MAIL_HOST}|" .env.example
+            sed -i "s|^MAIL_PORT=.*|MAIL_PORT=${MAIL_PORT}|" .env.example
+            sed -i "s|^MAIL_USERNAME=.*|MAIL_USERNAME=${MAIL_USERNAME}|" .env.example
+            sed -i "s|^MAIL_PASSWORD=.*|MAIL_PASSWORD=\"${MAIL_PASSWORD}\"|" .env.example
+            sed -i "s|^MAIL_ENCRYPTION=.*|MAIL_ENCRYPTION=tls|" .env.example
+            sed -i "s|^MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS}|" .env.example
+            sed -i "s|^MAIL_FROM_NAME=.*|MAIL_FROM_NAME=\"African Universities VLP\"|" .env.example
+            sed -i "s|^AWS_ACCESS_KEY_ID=.*|AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}|" .env.example
+            sed -i "s|^AWS_SECRET_ACCESS_KEY=.*|AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}|" .env.example
+            sed -i "s|^AWS_DEFAULT_REGION=.*|AWS_DEFAULT_REGION=${AWS_REGION}|" .env.example
+            sed -i "s|^AWS_BUCKET=.*|AWS_BUCKET=${AWS_BUCKET}|" .env.example
+            sed -i "s|^AWS_USE_PATH_STYLE_ENDPOINT=.*|AWS_USE_PATH_STYLE_ENDPOINT=${AWS_USE_PATH_STYLE_ENDPOINT}|" .env.example
+            sed -i "s|^AWS_CLOUDFRONT_URL=.*|AWS_CLOUDFRONT_URL=${AWS_CLOUDFRONT_URL}|" .env.example
+            cp .env.example .env
+      - run:
+          name: "Login to AWS ECR"
+          command: |
+            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+      - run:
+          name: "Build Docker image for Client Production"
+          command: |
+            docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpclient:prod-${CIRCLE_SHA1:0:11} .
+      - run:
+          name: "Push Docker image to AWS ECR"
+          command: |
+            docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/africanvlpclient:prod-${CIRCLE_SHA1:0:11}
+
 workflows:
   test-and-deploy:
     jobs:
-      - build-and-test
+      - build-and-test-admin
+      - build-and-test-client
       - hold-for-approval:
           type: approval
           requires:
-            - build-and-test
-      - build-docker-image-staging:
+            - build-and-test-admin
+            - build-and-test-client
+      - build-docker-image-admin-staging:
           requires:
             - hold-for-approval
-      - build-docker-image-production:
+      - build-docker-image-client-staging:
+          requires:
+            - hold-for-approval
+      - build-docker-image-admin-production:
+          requires:
+            - hold-for-approval
+          filters:
+            branches:
+              only: main
+      - build-docker-image-client-production:
           requires:
             - hold-for-approval
           filters:
