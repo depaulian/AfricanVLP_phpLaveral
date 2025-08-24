@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('name');
             $table->string('slug')->unique();
             $table->text('description')->nullable();
-            $table->foreignId('parent_id')->nullable()->constrained('volunteering_categories')->onDelete('set null');
             $table->string('icon_url', 500)->nullable();
             $table->string('color_code', 7)->nullable();
             $table->integer('sort_order')->default(0);
@@ -25,7 +24,6 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
             
-            $table->index(['parent_id']);
             $table->index(['status']);
             $table->index(['sort_order']);
         });

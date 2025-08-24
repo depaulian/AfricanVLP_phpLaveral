@@ -5,358 +5,472 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Services\UserProfileService;
 use App\Services\RegistrationService;
-use App\Models\City;
-use App\Models\Country;
+use App\Http\Requests\VolunteerRegistrationRequest;
+use App\Models\OrganizationCategory;
 use App\Models\VolunteeringCategory;
+use App\Models\Country;
+use App\Models\City;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use Illuminate\View\View;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
-use Exception;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Http\JsonResponse;
 
 class RegistrationController extends Controller
 {
     public function __construct(
         private UserProfileService $profileService,
         private RegistrationService $registrationService
-    ) {
-        $this->middleware('auth');
+    ) {}
+
+    /**
+     * Show the registration form
+     */
+    public function showRegistrationForm()
+    {
+        $volunteer_modes = User::VOLUNTEER_MODES;
+        $time_commitments = User::TIME_COMMITMENTS;
+        $languages = User::LANGUAGES;
+        
+        $countries = $this->registrationService->getCountries();
+        
+        $organisation_categories = OrganizationCategory::orderBy('name')->get(['id', 'name']);
+        
+        $volunteeringCategories = VolunteeringCategory::active()
+            ->orderBy('name')
+            ->get(['id', 'name', 'description']);
+
+        return view('client.registration.volunteer.register', compact(
+            'volunteeringCategories', 
+            'volunteer_modes', 
+            'time_commitments', 
+            'languages', 
+            'organisation_categories',
+            'countries'
+        ));
     }
 
     /**
-     * Show the multi-step registration wizard.
+     * Handle registration form submission
      */
-    public function index(): View|RedirectResponse
+    public function register(VolunteerRegistrationRequest $request)
     {
-        $user = Auth::user();
-        
-        // Initialize registration if not started
-        if (!$user->registrationSteps()->exists()) {
-            $this->registrationService->initializeRegistration($user);
-        }
-        
-        // Check if registration is already complete
-        if ($this->registrationService->isRegistrationComplete($user)) {
-            return redirect()->route('profile.show')
-                ->with('info', 'Registration already completed!');
-        }
-
-        $progress = $this->registrationService->getRegistrationProgress($user);
-        $nextStep = $this->registrationService->getNextStep($user);
-
-        return view('client.registration.index', compact('progress', 'nextStep'));
-    }
-
-    /**
-     * Show a specific registration step.
-     */
-    public function step(string $stepName): View|RedirectResponse
-    {
-        $user = Auth::user();
-        
-        // Initialize registration if not started
-        if (!$user->registrationSteps()->exists()) {
-            $this->registrationService->initializeRegistration($user);
-        }
-        
-        // Validate step name
-        $stepConfig = $this->registrationService->getStepConfiguration($stepName);
-        if (!$stepConfig) {
-            abort(404);
-        }
-
-        // Check if registration is already complete
-        if ($this->registrationService->isRegistrationComplete($user)) {
-            return redirect()->route('profile.show')
-                ->with('info', 'Registration already completed!');
-        }
-
-        $progress = $this->registrationService->getRegistrationProgress($user);
-        $stepData = $user->registrationSteps()->where('step_name', $stepName)->first();
-
-        // Load additional data based on step
-        $additionalData = $this->getStepData($stepName);
-
-        return view("client.registration.steps.{$stepName}", array_merge([
-            'user' => $user,
-            'progress' => $progress,
-            'stepData' => $stepData,
-            'stepName' => $stepName,
-            'stepConfig' => $stepConfig
-        ], $additionalData));
-    }
-
-    /**
-     * Process a registration step.
-     */
-    public function processStep(Request $request, string $stepName): RedirectResponse
-    {
-        $user = Auth::user();
-        
-        // Validate step name
-        $stepConfig = $this->registrationService->getStepConfiguration($stepName);
-        if (!$stepConfig) {
-            abort(404);
-        }
-
         try {
-            DB::beginTransaction();
-            
-            $validatedData = $this->validateStepData($request, $stepName);
-            
-            // Process the step data
-            $this->processStepData($user, $stepName, $validatedData);
-            
-            // Mark step as completed using RegistrationService
-            $this->registrationService->completeStep($user, $stepName, $validatedData);
-
-            DB::commit();
-
-            // Determine next step
-            $nextStep = $this->registrationService->getNextStep($user->fresh());
-            
-            if ($nextStep) {
-                return redirect()->route('registration.step', $nextStep)
-                    ->with('success', 'Step completed successfully!');
-            } else {
-                // Registration complete - redirect to onboarding or profile
-                return redirect()->route('profile.show')
-                    ->with('success', 'Registration completed successfully! Welcome to the platform!');
+            // Handle AJAX request
+            if ($request->expectsJson()) {
+                $result = $this->registrationService->registerVolunteer($request);
+                
+                if ($result['success']) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => $result['message'],
+                        'redirect_url' => $result['redirect_url']
+                    ]);
+                } else {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $result['message'],
+                        'errors' => $result['error'] ?? null
+                    ], 422);
+                }
             }
-        } catch (Exception $e) {
-            DB::rollBack();
+
+            // Handle regular form submission
+            $result = $this->registrationService->registerVolunteer($request);
+            
+            if ($result['success']) {
+                return redirect()->route('verification.notice')
+                    ->with('success', $result['message']);
+            } else {
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', $result['message']);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Registration controller error: ' . $e->getMessage());
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Registration failed. Please try again.'
+                ], 500);
+            }
             
             return redirect()->back()
                 ->withInput()
-                ->with('error', 'Failed to process step: ' . $e->getMessage());
+                ->with('error', 'Registration failed. Please try again.');
         }
     }
 
     /**
-     * Get registration progress (AJAX).
+     * Check if email is available
      */
-    public function progress(): JsonResponse
+    public function checkEmail(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        $email = strtolower(trim($request->email));
+        $available = $this->registrationService->isEmailAvailable($email);
+
+        return response()->json([
+            'available' => $available,
+            'message' => $available 
+                ? 'Email is available' 
+                : 'This email is already registered'
+        ]);
+    }
+
+    /**
+     * Get cities by country (AJAX endpoint)
+     */
+    public function getCitiesByCountry(Request $request, int $countryId): JsonResponse
     {
         try {
-            $progress = $this->registrationService->getRegistrationProgress(Auth::user());
+            $cities = $this->registrationService->getCitiesByCountry($countryId);
+            
+            return response()->json($cities);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch cities', [
+                'country_id' => $countryId,
+                'error' => $e->getMessage()
+            ]);
             
             return response()->json([
-                'success' => true,
-                'progress' => $progress
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to load progress'
+                'error' => 'Failed to load cities'
             ], 500);
         }
     }
 
     /**
-     * Skip a registration step (if allowed).
+     * Auto-save registration progress (for authenticated users)
      */
-    public function skipStep(string $stepName): RedirectResponse
+    public function autoSave(Request $request): JsonResponse
+    {
+        if (!Auth::check()) {
+            return response()->json(['success' => false, 'message' => 'Not authenticated'], 401);
+        }
+
+        try {
+            $this->registrationService->autoSaveProgress(Auth::user(), $request->all());
+            
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            Log::error('Auto-save failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json(['success' => false], 500);
+        }
+    }
+
+    /**
+     * Get registration progress (for authenticated users)
+     */
+    public function getProgress(): JsonResponse
+    {
+        if (!Auth::check()) {
+            return response()->json(['error' => 'Not authenticated'], 401);
+        }
+
+        try {
+            $progress = $this->registrationService->getRegistrationProgress(Auth::user());
+            
+            return response()->json($progress);
+        } catch (\Exception $e) {
+            Log::error('Failed to get registration progress', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json(['error' => 'Failed to load progress'], 500);
+        }
+    }
+
+    /**
+     * Get volunteering categories (AJAX endpoint)
+     */
+    public function getVolunteeringCategories(): JsonResponse
+    {
+        try {
+            $categories = VolunteeringCategory::active()
+                ->orderBy('name')
+                ->get(['id', 'name', 'description', 'icon']);
+            
+            return response()->json($categories);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch volunteering categories', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'error' => 'Failed to load categories'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get organization categories (AJAX endpoint)
+     */
+    public function getOrganizationCategories(): JsonResponse
+    {
+        try {
+            $categories = OrganizationCategory::orderBy('name')
+                ->get(['id', 'name', 'description']);
+            
+            return response()->json($categories);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch organization categories', [
+                'error' => $e->getMessage()
+            ]);
+            
+            return response()->json([
+                'error' => 'Failed to load categories'
+            ], 500);
+        }
+    }
+
+    /**
+     * Registration dashboard (for incomplete registrations)
+     */
+    public function index()
+    {
+        $user = Auth::user();
+        
+        // Redirect if registration is already completed
+        if ($user->hasCompletedRegistration()) {
+            return redirect()->route('dashboard');
+        }
+
+        $progress = $this->registrationService->getRegistrationProgress($user);
+        
+        return view('client.registration.dashboard', compact('progress'));
+    }
+
+    /**
+     * Show specific registration step
+     */
+    public function step(Request $request, string $stepName)
+    {
+        $user = Auth::user();
+        $validSteps = ['basic-info', 'profile-details', 'interests-preferences'];
+        
+        if (!in_array($stepName, $validSteps)) {
+            abort(404);
+        }
+
+        // Check if user can access this step
+        $currentStep = $user->registration_step ?? 1;
+        $stepNumber = array_search($stepName, $validSteps) + 1;
+        
+        if ($stepNumber > $currentStep + 1) {
+            return redirect()->route('registration.volunteer.step', $validSteps[$currentStep - 1]);
+        }
+
+        $data = $this->getStepData($stepName);
+        
+        return view("client.registration.volunteer.steps.{$stepName}", array_merge([
+            'user' => $user,
+            'currentStep' => $stepNumber,
+            'totalSteps' => count($validSteps)
+        ], $data));
+    }
+
+    /**
+     * Process registration step
+     */
+    public function processStep(Request $request, string $stepName)
+    {
+        $user = Auth::user();
+        
+        try {
+            switch ($stepName) {
+                case 'basic-info':
+                    $this->processBasicInfo($request, $user);
+                    break;
+                case 'profile-details':
+                    $this->processProfileDetails($request, $user);
+                    break;
+                case 'interests-preferences':
+                    $this->processInterests($request, $user);
+                    // Complete registration on final step
+                    $this->registrationService->completeRegistration($user);
+                    break;
+                default:
+                    abort(404);
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Step completed successfully',
+                    'next_url' => $this->getNextStepUrl($stepName)
+                ]);
+            }
+
+            return redirect($this->getNextStepUrl($stepName));
+            
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $e->errors()
+                ], 422);
+            }
+            
+            return redirect()->back()->withErrors($e->errors())->withInput();
+        }
+    }
+
+    /**
+     * Skip optional registration step
+     */
+    public function skipStep(Request $request, string $stepName)
     {
         $user = Auth::user();
         
         // Only allow skipping certain steps
-        $skippableSteps = ['interests'];
+        $skippableSteps = ['profile-details'];
+        
         if (!in_array($stepName, $skippableSteps)) {
-            return redirect()->back()
-                ->with('error', 'This step cannot be skipped.');
+            return response()->json(['error' => 'Cannot skip this step'], 400);
         }
 
-        try {
-            // Mark step as completed with skipped flag
-            $this->registrationService->completeStep($user, $stepName, ['skipped' => true]);
+        // Move to next step
+        $nextStepNumber = $user->registration_step + 1;
+        $user->update(['registration_step' => $nextStepNumber]);
 
-            $nextStep = $this->registrationService->getNextStep($user->fresh());
-            
-            if ($nextStep) {
-                return redirect()->route('registration.step', $nextStep)
-                    ->with('info', 'Step skipped successfully.');
-            } else {
-                return redirect()->route('profile.show')
-                    ->with('success', 'Registration completed successfully!');
-            }
-        } catch (Exception $e) {
-            return redirect()->back()
-                ->with('error', 'Failed to skip step. Please try again.');
-        }
+        return response()->json([
+            'success' => true,
+            'next_url' => $this->getNextStepUrl($stepName)
+        ]);
     }
 
     /**
-     * Auto-save step progress (AJAX).
-     */
-    public function autoSave(Request $request): JsonResponse
-    {
-        try {
-            $user = Auth::user();
-            $stepName = $request->input('step_name');
-            $stepData = $request->except(['_token', 'step_name', 'auto_save']);
-
-            // Validate step name
-            $stepConfig = $this->registrationService->getStepConfiguration($stepName);
-            if (!$stepConfig) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid step name'
-                ], 400);
-            }
-
-            // Save progress
-            $this->registrationService->saveStepProgress($user, $stepName, $stepData);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Progress saved automatically'
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to save progress'
-            ], 500);
-        }
-    }
-
-    /**
-     * Get registration analytics (Admin only).
-     */
-    public function analytics(Request $request): JsonResponse
-    {
-        // This would typically be in an admin controller, but including here for completeness
-        if (!Auth::user()->hasRole('admin')) {
-            abort(403);
-        }
-
-        try {
-            $startDate = $request->input('start_date') ? 
-                \Carbon\Carbon::parse($request->input('start_date')) : null;
-            $endDate = $request->input('end_date') ? 
-                \Carbon\Carbon::parse($request->input('end_date')) : null;
-
-            $analytics = $this->registrationService->getRegistrationAnalytics($startDate, $endDate);
-            $funnel = $this->registrationService->getRegistrationFunnel($startDate, $endDate);
-
-            return response()->json([
-                'success' => true,
-                'analytics' => $analytics,
-                'funnel' => $funnel
-            ]);
-        } catch (Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to load analytics'
-            ], 500);
-        }
-    }
-
-    /**
-     * Get additional data for specific steps.
+     * Get data for specific step
      */
     private function getStepData(string $stepName): array
     {
-        return match ($stepName) {
-            'profile_details' => [
-                'cities' => City::orderBy('name')->get(),
-                'countries' => Country::orderBy('name')->get(),
-            ],
-            'interests' => [
-                'categories' => VolunteeringCategory::active()->get(),
-            ],
-            default => [],
-        };
-    }
-
-    /**
-     * Validate step data based on step name.
-     */
-    private function validateStepData(Request $request, string $stepName): array
-    {
-        return match ($stepName) {
-            'basic_info' => $request->validate([
-                'first_name' => 'required|string|max:255',
-                'last_name' => 'required|string|max:255',
-                'email' => 'required|email|unique:users,email,' . Auth::id(),
-            ]),
-            'profile_details' => $request->validate([
-                'bio' => 'nullable|string|max:1000',
-                'date_of_birth' => 'nullable|date|before:today',
-                'gender' => 'nullable|in:male,female,other,prefer_not_to_say',
-                'phone_number' => 'nullable|string|max:50',
-                'address' => 'nullable|string|max:500',
-                'city_id' => 'nullable|exists:cities,id',
-                'country_id' => 'nullable|exists:countries,id',
-            ]),
-            'interests' => $request->validate([
-                'volunteering_interests' => 'nullable|array',
-                'volunteering_interests.*' => 'exists:volunteering_categories,id',
-                'interest_levels' => 'nullable|array',
-                'interest_levels.*' => 'in:low,medium,high',
-                'skills' => 'nullable|array',
-                'skills.*.name' => 'required|string|max:255',
-                'skills.*.proficiency' => 'required|in:beginner,intermediate,advanced,expert',
-                'skills.*.years_experience' => 'nullable|integer|min:0|max:50',
-            ]),
-            'verification' => $request->validate([
-                'email_verified' => 'required|boolean',
-                'terms_accepted' => 'required|accepted',
-            ]),
-            default => [],
-        };
-    }
-
-    /**
-     * Process step data and update user information.
-     */
-    private function processStepData(User $user, string $stepName, array $data): void
-    {
         switch ($stepName) {
-            case 'basic_info':
-                $user->update([
-                    'first_name' => $data['first_name'],
-                    'last_name' => $data['last_name'],
-                    'email' => $data['email'],
-                ]);
-                break;
-
-            case 'profile_details':
-                if ($user->profile) {
-                    $this->profileService->updateProfile($user->profile, $data);
-                } else {
-                    $this->profileService->createProfile($user, $data);
-                }
-                break;
-
-            case 'interests':
-                // Add volunteering interests
-                if (!empty($data['volunteering_interests'])) {
-                    foreach ($data['volunteering_interests'] as $index => $categoryId) {
-                        $level = $data['interest_levels'][$index] ?? 'medium';
-                        $this->profileService->addVolunteeringInterest($user, $categoryId, $level);
-                    }
-                }
-
-                // Add skills
-                if (!empty($data['skills'])) {
-                    foreach ($data['skills'] as $skillData) {
-                        $this->profileService->addSkill($user, [
-                            'skill_name' => $skillData['name'],
-                            'proficiency_level' => $skillData['proficiency'],
-                            'years_experience' => $skillData['years_experience'] ?? null,
-                        ]);
-                    }
-                }
-                break;
-
-            case 'verification':
-                if ($data['email_verified'] && !$user->hasVerifiedEmail()) {
-                    $user->markEmailAsVerified();
-                }
-                break;
+            case 'basic-info':
+                return [
+                    'countries' => $this->registrationService->getCountries(),
+                    'languages' => User::LANGUAGES
+                ];
+                
+            case 'profile-details':
+                return [
+                    'countries' => $this->registrationService->getCountries(),
+                    'volunteer_modes' => User::VOLUNTEER_MODES,
+                    'time_commitments' => User::TIME_COMMITMENTS
+                ];
+                
+            case 'interests-preferences':
+                return [
+                    'volunteeringCategories' => VolunteeringCategory::active()->orderBy('name')->get(),
+                    'organizationCategories' => OrganizationCategory::orderBy('name')->get(),
+                    'volunteer_modes' => User::VOLUNTEER_MODES,
+                    'time_commitments' => User::TIME_COMMITMENTS
+                ];
+                
+            default:
+                return [];
         }
+    }
+
+    /**
+     * Process basic info step
+     */
+    private function processBasicInfo(Request $request, User $user): void
+    {
+        $request->validate([
+            'first_name' => 'required|string|max:45',
+            'last_name' => 'required|string|max:45',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'phone_number' => 'nullable|string|max:20',
+            'preferred_language' => 'required|in:' . implode(',', User::LANGUAGES)
+        ]);
+
+        $user->update([
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
+            'email' => $request->email,
+            'phone_number' => $request->phone_number,
+            'preferred_language' => $request->preferred_language,
+            'registration_step' => 2
+        ]);
+    }
+
+    /**
+     * Process profile details step
+     */
+    private function processProfileDetails(Request $request, User $user): void
+    {
+        $request->validate([
+            'date_of_birth' => 'nullable|date|before:today',
+            'gender' => 'nullable|in:male,female,other',
+            'country_id' => 'nullable|exists:countries,id',
+            'city_id' => 'nullable|exists:cities,id',
+            'address' => 'nullable|string',
+            'cv' => 'nullable|file|mimes:pdf,doc,docx|max:5120'
+        ]);
+
+        $updateData = [
+            'date_of_birth' => $request->date_of_birth,
+            'gender' => $request->gender,
+            'country_id' => $request->country_id,
+            'city_id' => $request->city_id,
+            'address' => $request->address,
+            'registration_step' => 3
+        ];
+
+        // Handle CV upload
+        if ($request->hasFile('cv')) {
+            $this->registrationService->handleCvUpload($user, $request->file('cv'));
+        }
+
+        $user->update($updateData);
+    }
+
+    /**
+     * Process interests and preferences step
+     */
+    private function processInterests(Request $request, User $user): void
+    {
+        $request->validate([
+            'volunteer_mode' => 'required|in:' . implode(',', User::VOLUNTEER_MODES),
+            'time_commitment' => 'required|in:' . implode(',', User::TIME_COMMITMENTS),
+            'volunteering_interests' => 'nullable|array',
+            'volunteering_interests.*' => 'exists:volunteering_categories,id',
+            'organization_interests' => 'nullable|array',
+            'organization_interests.*' => 'exists:organization_categories,id'
+        ]);
+
+        $user->update([
+            'volunteer_mode' => $request->volunteer_mode,
+            'time_commitment' => $request->time_commitment,
+            'registration_step' => 4
+        ]);
+
+        // Handle interests
+        $this->registrationService->handleUserInterests($user, $request);
+    }
+
+    /**
+     * Get next step URL
+     */
+    private function getNextStepUrl(string $currentStep): string
+    {
+        $steps = ['basic-info', 'profile-details', 'interests-preferences'];
+        $currentIndex = array_search($currentStep, $steps);
+        
+        if ($currentIndex === false || $currentIndex === count($steps) - 1) {
+            return route('dashboard'); // Registration completed
+        }
+        
+        return route('registration.volunteer.step', $steps[$currentIndex + 1]);
     }
 }
