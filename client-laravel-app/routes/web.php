@@ -75,10 +75,10 @@ Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])-
 Route::post('/email/verification-notification', [AuthController::class, 'resendVerificationEmail'])->name('verification.send');
 
 // Public Content Routes
-Route::get('/news', [NewsController::class, 'publicIndex'])->name('news.public');
-Route::get('/news/{news}', [NewsController::class, 'publicShow'])->name('news.public.show');
-Route::get('/events', [EventController::class, 'publicIndex'])->name('events.public');
-Route::get('/events/{event}', [EventController::class, 'publicShow'])->name('events.public.show');
+Route::get('public/news', [NewsController::class, 'publicIndex'])->name('news.public');
+Route::get('public/news/{news}', [NewsController::class, 'publicShow'])->name('news.public.show');
+Route::get('public/events', [EventController::class, 'publicIndex'])->name('events.public');
+Route::get('public/events/{event}', [EventController::class, 'publicShow'])->name('events.public.show');
 Route::get('/public/blog', [BlogController::class, 'publicIndex'])->name('blog.public');
 Route::get('/public/blog/{blog}', [BlogController::class, 'publicShow'])->name('blog.public.show');
 Route::get('/opportunities', [OpportunityController::class, 'publicIndex'])->name('opportunities.public');
