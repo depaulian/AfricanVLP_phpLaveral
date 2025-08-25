@@ -551,4 +551,283 @@ class EventController extends Controller
             'data' => $events
         ]);
     }
+
+    /**
+     * UI: Events list page
+     */
+    public function uiIndex(Request $request)
+    {
+        $query = Event::with(['organization', 'city', 'country', 'region']);
+
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->input('organization_id'));
+        }
+        if ($request->filled('city_id')) {
+            $query->where('city_id', $request->input('city_id'));
+        }
+        if ($request->filled('country_id')) {
+            $query->where('country_id', $request->input('country_id'));
+        }
+        if ($request->filled('region_id')) {
+            $query->where('region_id', $request->input('region_id'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        if ($request->filled('featured')) {
+            $query->where('featured', $request->boolean('featured'));
+        }
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('title', 'like', "%{$search}%")
+                  ->orWhere('description', 'like', "%{$search}%")
+                  ->orWhere('location', 'like', "%{$search}%");
+            });
+        }
+        if ($request->filled('date_from')) {
+            $query->where('start_date', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->where('start_date', '<=', $request->input('date_to'));
+        }
+        if ($request->filled('date_filter')) {
+            switch ($request->input('date_filter')) {
+                case 'upcoming':
+                    $query->where('start_date', '>', now());
+                    break;
+                case 'ongoing':
+                    $query->where('start_date', '<=', now())
+                          ->where('end_date', '>=', now());
+                    break;
+                case 'past':
+                    $query->where('end_date', '<', now());
+                    break;
+            }
+        }
+
+        $sortBy = $request->input('sort_by', 'start_date');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        $perPage = $request->input('per_page', 15);
+        $events = $query->paginate($perPage)->withQueryString();
+
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $cities = City::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $countries = Country::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $regions = Region::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+
+        return view('admin.events.index', [
+            'events' => $events,
+            'filters' => [
+                'organizations' => $organizations,
+                'cities' => $cities,
+                'countries' => $countries,
+                'regions' => $regions,
+            ],
+            'sort' => [
+                'by' => $sortBy,
+                'order' => $sortOrder,
+            ],
+        ]);
+    }
+
+    /**
+     * UI: Event create page
+     */
+    public function uiCreate()
+    {
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $cities = City::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $countries = Country::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $regions = Region::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+
+        return view('admin.events.create', compact('organizations', 'cities', 'countries', 'regions'));
+    }
+
+    /**
+     * UI: Event details page
+     */
+    public function uiShow(Event $event)
+    {
+        $event->load(['organization', 'city', 'country', 'region', 'volunteeringOpportunities']);
+        return view('admin.events.show', compact('event'));
+    }
+
+    /**
+     * UI: Event edit page
+     */
+    public function uiEdit(Event $event)
+    {
+        $event->load(['organization', 'city', 'country', 'region']);
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $cities = City::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $countries = Country::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $regions = Region::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+
+        return view('admin.events.edit', compact('event', 'organizations', 'cities', 'countries', 'regions'));
+    }
+
+    /**
+     * UI: Handle event creation from Blade form
+     */
+    public function uiStore(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'content' => 'sometimes|string',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after_or_equal:start_date',
+            'registration_deadline' => 'sometimes|date|before:start_date',
+            'location' => 'required|string|max:255',
+            'organization_id' => 'required|exists:organizations,id',
+            'city_id' => 'sometimes|exists:cities,id',
+            'country_id' => 'sometimes|exists:countries,id',
+            'region_id' => 'sometimes|exists:regions,id',
+            'latitude' => 'sometimes|numeric|between:-90,90',
+            'longitude' => 'sometimes|numeric|between:-180,180',
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'max_participants' => 'sometimes|integer|min:1',
+            'contact_email' => 'sometimes|email',
+            'contact_phone' => 'sometimes|string|max:20',
+            'website_url' => 'sometimes|url',
+            'status' => 'sometimes|in:draft,scheduled,ongoing,cancelled,completed',
+            'featured' => 'sometimes|boolean',
+            'is_virtual' => 'sometimes|boolean',
+            'virtual_link' => 'sometimes|url',
+            'tags' => 'sometimes|array',
+            'meta_title' => 'sometimes|string|max:255',
+            'meta_description' => 'sometimes|string|max:500',
+            'meta_keywords' => 'sometimes|string|max:500'
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $data = $request->all();
+
+            if (!isset($data['slug'])) {
+                $data['slug'] = Str::slug($data['title']);
+            }
+
+            if ($request->hasFile('image')) {
+                $uploadResult = $this->fileUploadService->uploadFile(
+                    $request->file('image'),
+                    'events/images',
+                    [
+                        'folder' => 'events',
+                        'transformation' => [
+                            'width' => 1200,
+                            'height' => 630,
+                            'crop' => 'fill',
+                            'quality' => 'auto'
+                        ]
+                    ]
+                );
+
+                if ($uploadResult['success']) {
+                    $data['image'] = $uploadResult['file_path'];
+                }
+            }
+
+            $event = Event::create($data);
+
+            DB::commit();
+
+            return redirect()->route('admin.events.ui.show', $event)
+                ->with('status', 'Event created successfully');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('UI Event creation error: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Event creation failed'])->withInput();
+        }
+    }
+
+    /**
+     * UI: Handle event update from Blade form
+     */
+    public function uiUpdate(Request $request, Event $event)
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'sometimes|string|max:255',
+            'description' => 'sometimes|string',
+            'content' => 'sometimes|string',
+            'start_date' => 'sometimes|date',
+            'end_date' => 'sometimes|date|after_or_equal:start_date',
+            'registration_deadline' => 'sometimes|date|before:start_date',
+            'location' => 'sometimes|string|max:255',
+            'organization_id' => 'sometimes|exists:organizations,id',
+            'city_id' => 'sometimes|exists:cities,id',
+            'country_id' => 'sometimes|exists:countries,id',
+            'region_id' => 'sometimes|exists:regions,id',
+            'latitude' => 'sometimes|numeric|between:-90,90',
+            'longitude' => 'sometimes|numeric|between:-180,180',
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'max_participants' => 'sometimes|integer|min:1',
+            'contact_email' => 'sometimes|email',
+            'contact_phone' => 'sometimes|string|max:20',
+            'website_url' => 'sometimes|url',
+            'status' => 'sometimes|in:draft,scheduled,ongoing,cancelled,completed',
+            'featured' => 'sometimes|boolean',
+            'is_virtual' => 'sometimes|boolean',
+            'virtual_link' => 'sometimes|url',
+            'tags' => 'sometimes|array',
+            'meta_title' => 'sometimes|string|max:255',
+            'meta_description' => 'sometimes|string|max:500',
+            'meta_keywords' => 'sometimes|string|max:500'
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $data = $request->all();
+
+            if ($request->hasFile('image')) {
+                if ($event->image) {
+                    $this->fileUploadService->deleteFile($event->image);
+                }
+
+                $uploadResult = $this->fileUploadService->uploadFile(
+                    $request->file('image'),
+                    'events/images',
+                    [
+                        'folder' => 'events',
+                        'transformation' => [
+                            'width' => 1200,
+                            'height' => 630,
+                            'crop' => 'fill',
+                            'quality' => 'auto'
+                        ]
+                    ]
+                );
+
+                if ($uploadResult['success']) {
+                    $data['image'] = $uploadResult['file_path'];
+                }
+            }
+
+            $event->update($data);
+
+            DB::commit();
+
+            return redirect()->route('admin.events.ui.show', $event)
+                ->with('status', 'Event updated successfully');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('UI Event update error: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Event update failed'])->withInput();
+        }
+    }
 }

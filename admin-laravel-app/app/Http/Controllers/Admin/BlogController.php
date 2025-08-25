@@ -80,9 +80,7 @@ class BlogController extends Controller
         $blogs = $query->paginate($perPage)->withQueryString();
 
         // Get filter options
-        $authors = User::select('id', DB::raw("CONCAT(first_name, ' ', last_name) as name"))
-                        ->orderBy('name')
-                        ->get();
+        $authors = User::select('id', 'name')->orderBy('name')->get();
         $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
         $categories = BlogCategory::active()->ordered()->get();
 
@@ -481,4 +479,251 @@ class BlogController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * UI: Blogs list page
+     */
+    public function uiIndex(Request $request)
+    {
+        $query = Blog::with(['author', 'organization', 'category']);
+
+        if ($request->filled('author_id')) {
+            $query->where('author_id', $request->input('author_id'));
+        }
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->input('organization_id'));
+        }
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->input('category_id'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        if ($request->filled('featured')) {
+            $query->where('featured', $request->boolean('featured'));
+        }
+        if ($request->filled('language')) {
+            $query->where('language', $request->input('language'));
+        }
+        if ($request->filled('search')) {
+            $query->search($request->input('search'));
+        }
+        if ($request->filled('date_from')) {
+            $query->where('created_at', '>=', $request->input('date_from'));
+        }
+        if ($request->filled('date_to')) {
+            $query->where('created_at', '<=', $request->input('date_to'));
+        }
+
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        $perPage = $request->input('per_page', 15);
+        $blogs = $query->paginate($perPage)->withQueryString();
+
+        $authors = User::select('id', 'name')->orderBy('name')->get();
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $categories = BlogCategory::active()->ordered()->get();
+
+        return view('admin.blogs.index', [
+            'blogs' => $blogs,
+            'filters' => [
+                'authors' => $authors,
+                'organizations' => $organizations,
+                'categories' => $categories,
+            ],
+            'sort' => [
+                'by' => $sortBy,
+                'order' => $sortOrder,
+            ],
+        ]);
+    }
+
+    /**
+     * UI: Blog create page
+     */
+    public function uiCreate()
+    {
+        $authors = User::select('id', 'name')->orderBy('name')->get();
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $categories = BlogCategory::active()->ordered()->get();
+
+        return view('admin.blogs.create', compact('authors', 'organizations', 'categories'));
+    }
+
+    /**
+     * UI: Blog details page
+     */
+    public function uiShow(Blog $blog)
+    {
+        $blog->load(['author', 'organization', 'category']);
+        return view('admin.blogs.show', compact('blog'));
+    }
+
+    /**
+     * UI: Blog edit page
+     */
+    public function uiEdit(Blog $blog)
+    {
+        $blog->load(['author', 'organization', 'category']);
+        $authors = User::select('id', 'name')->orderBy('name')->get();
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $categories = BlogCategory::active()->ordered()->get();
+
+        return view('admin.blogs.edit', compact('blog', 'authors', 'organizations', 'categories'));
+    }
+
+    /**
+     * UI: Handle blog creation from Blade form
+     */
+    public function uiStore(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'content' => 'required|string',
+            'excerpt' => 'sometimes|string|max:500',
+            'featured_image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'author_id' => 'sometimes|exists:users,id',
+            'organization_id' => 'sometimes|exists:organizations,id',
+            'category_id' => 'sometimes|exists:blog_categories,id',
+            'status' => 'sometimes|in:draft,published,archived',
+            'featured' => 'sometimes|boolean',
+            'published_at' => 'sometimes|date',
+            'meta_title' => 'sometimes|string|max:255',
+            'meta_description' => 'sometimes|string|max:500',
+            'meta_keywords' => 'sometimes|string|max:500',
+            'tags' => 'sometimes|array',
+            'language' => 'sometimes|string|max:10'
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $data = $request->all();
+
+            if (!isset($data['author_id'])) {
+                $data['author_id'] = Auth::id();
+            }
+
+            if (!isset($data['slug'])) {
+                $data['slug'] = Str::slug($data['title']);
+            }
+
+            if ($request->hasFile('featured_image')) {
+                $uploadResult = $this->fileUploadService->uploadFile(
+                    $request->file('featured_image'),
+                    'blogs/images',
+                    [
+                        'folder' => 'blogs',
+                        'transformation' => [
+                            'width' => 1200,
+                            'height' => 630,
+                            'crop' => 'fill',
+                            'quality' => 'auto'
+                        ]
+                    ]
+                );
+
+                if ($uploadResult['success']) {
+                    $data['featured_image'] = $uploadResult['file_path'];
+                }
+            }
+
+            if (($data['status'] ?? null) === 'published' && !isset($data['published_at'])) {
+                $data['published_at'] = now();
+            }
+
+            $blog = Blog::create($data);
+
+            DB::commit();
+
+            return redirect()->route('admin.blogs.ui.show', $blog)
+                ->with('status', 'Blog created successfully');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('UI Blog creation error: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Blog creation failed'])->withInput();
+        }
+    }
+
+    /**
+     * UI: Handle blog update from Blade form
+     */
+    public function uiUpdate(Request $request, Blog $blog)
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'sometimes|string|max:255',
+            'content' => 'sometimes|string',
+            'excerpt' => 'sometimes|string|max:500',
+            'featured_image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'author_id' => 'sometimes|exists:users,id',
+            'organization_id' => 'sometimes|exists:organizations,id',
+            'category_id' => 'sometimes|exists:blog_categories,id',
+            'status' => 'sometimes|in:draft,published,archived',
+            'featured' => 'sometimes|boolean',
+            'published_at' => 'sometimes|date',
+            'meta_title' => 'sometimes|string|max:255',
+            'meta_description' => 'sometimes|string|max:500',
+            'meta_keywords' => 'sometimes|string|max:500',
+            'tags' => 'sometimes|array',
+            'language' => 'sometimes|string|max:10'
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $data = $request->all();
+
+            if ($request->hasFile('featured_image')) {
+                if ($blog->featured_image) {
+                    $this->fileUploadService->deleteFile($blog->featured_image);
+                }
+
+                $uploadResult = $this->fileUploadService->uploadFile(
+                    $request->file('featured_image'),
+                    'blogs/images',
+                    [
+                        'folder' => 'blogs',
+                        'transformation' => [
+                            'width' => 1200,
+                            'height' => 630,
+                            'crop' => 'fill',
+                            'quality' => 'auto'
+                        ]
+                    ]
+                );
+
+                if ($uploadResult['success']) {
+                    $data['featured_image'] = $uploadResult['file_path'];
+                }
+            }
+
+            if (isset($data['status']) && $data['status'] === 'published' && !$blog->published_at && !isset($data['published_at'])) {
+                $data['published_at'] = now();
+            }
+
+            $blog->update($data);
+
+            DB::commit();
+
+            return redirect()->route('admin.blogs.ui.show', $blog)
+                ->with('status', 'Blog updated successfully');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('UI Blog update error: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Blog update failed'])->withInput();
+        }
+    }
+
 }

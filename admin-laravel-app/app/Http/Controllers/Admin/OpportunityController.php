@@ -526,4 +526,224 @@ class OpportunityController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * UI: Opportunities list page
+     */
+    public function uiIndex(Request $request)
+    {
+        $query = Opportunity::with(['organization', 'category']);
+
+        if ($request->filled('organization_id')) {
+            $query->where('organization_id', $request->input('organization_id'));
+        }
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->input('category_id'));
+        }
+        if ($request->filled('type')) {
+            $query->where('type', $request->input('type'));
+        }
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+        if ($request->filled('featured')) {
+            $query->where('featured', $request->boolean('featured'));
+        }
+        if ($request->filled('experience_level')) {
+            $query->where('experience_level', $request->input('experience_level'));
+        }
+        if ($request->filled('remote_allowed')) {
+            $query->where('remote_allowed', $request->boolean('remote_allowed'));
+        }
+        if ($request->filled('location')) {
+            $query->byLocation($request->input('location'));
+        }
+        if ($request->filled('search')) {
+            $query->search($request->input('search'));
+        }
+        if ($request->filled('deadline_from')) {
+            $query->where('application_deadline', '>=', $request->input('deadline_from'));
+        }
+        if ($request->filled('deadline_to')) {
+            $query->where('application_deadline', '<=', $request->input('deadline_to'));
+        }
+
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        $perPage = $request->input('per_page', 15);
+        $opportunities = $query->paginate($perPage)->withQueryString();
+
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $categories = OpportunityCategory::active()->ordered()->get();
+
+        return view('admin.opportunities.index', [
+            'opportunities' => $opportunities,
+            'filters' => [
+                'organizations' => $organizations,
+                'categories' => $categories,
+            ],
+            'sort' => [
+                'by' => $sortBy,
+                'order' => $sortOrder,
+            ],
+        ]);
+    }
+
+    /**
+     * UI: Opportunity create page
+     */
+    public function uiCreate()
+    {
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $categories = OpportunityCategory::active()->ordered()->get();
+
+        return view('admin.opportunities.create', compact('organizations', 'categories'));
+    }
+
+    /**
+     * UI: Opportunity details page
+     */
+    public function uiShow(Opportunity $opportunity)
+    {
+        $opportunity->load(['organization', 'category', 'applications.user']);
+        return view('admin.opportunities.show', compact('opportunity'));
+    }
+
+    /**
+     * UI: Opportunity edit page
+     */
+    public function uiEdit(Opportunity $opportunity)
+    {
+        $opportunity->load(['organization', 'category']);
+        $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
+        $categories = OpportunityCategory::active()->ordered()->get();
+
+        return view('admin.opportunities.edit', compact('opportunity', 'organizations', 'categories'));
+    }
+
+    /**
+     * UI: Handle opportunity creation from Blade form
+     */
+    public function uiStore(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:255',
+            'description' => 'required|string',
+            'requirements' => 'sometimes|string',
+            'responsibilities' => 'sometimes|string',
+            'benefits' => 'sometimes|string',
+            'organization_id' => 'required|exists:organizations,id',
+            'category_id' => 'sometimes|exists:opportunity_categories,id',
+            'type' => 'required|in:volunteer,internship,job,fellowship,scholarship,grant,competition',
+            'location' => 'sometimes|string|max:255',
+            'remote_allowed' => 'sometimes|boolean',
+            'duration' => 'sometimes|string|max:255',
+            'time_commitment' => 'sometimes|string|max:255',
+            'start_date' => 'sometimes|date',
+            'end_date' => 'sometimes|date|after_or_equal:start_date',
+            'application_deadline' => 'required|date|after:now',
+            'status' => 'sometimes|in:draft,active,paused,closed,archived',
+            'featured' => 'sometimes|boolean',
+            'contact_email' => 'sometimes|email',
+            'contact_phone' => 'sometimes|string|max:20',
+            'external_url' => 'sometimes|url',
+            'skills_required' => 'sometimes|array',
+            'experience_level' => 'sometimes|in:entry,intermediate,senior,executive',
+            'language_requirements' => 'sometimes|array',
+            'age_requirements' => 'sometimes|string|max:255',
+            'education_requirements' => 'sometimes|string|max:255',
+            'max_applicants' => 'sometimes|integer|min:1',
+            'meta_title' => 'sometimes|string|max:255',
+            'meta_description' => 'sometimes|string|max:500',
+            'meta_keywords' => 'sometimes|string|max:500',
+            'tags' => 'sometimes|array'
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $data = $request->all();
+
+            if (!isset($data['slug'])) {
+                $data['slug'] = Str::slug($data['title']);
+            }
+
+            $opportunity = Opportunity::create($data);
+
+            DB::commit();
+
+            return redirect()->route('admin.opportunities.ui.show', $opportunity)
+                ->with('status', 'Opportunity created successfully');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('UI Opportunity creation error: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Opportunity creation failed'])->withInput();
+        }
+    }
+
+    /**
+     * UI: Handle opportunity update from Blade form
+     */
+    public function uiUpdate(Request $request, Opportunity $opportunity)
+    {
+        $validator = Validator::make($request->all(), [
+            'title' => 'sometimes|string|max:255',
+            'description' => 'sometimes|string',
+            'requirements' => 'sometimes|string',
+            'responsibilities' => 'sometimes|string',
+            'benefits' => 'sometimes|string',
+            'organization_id' => 'sometimes|exists:organizations,id',
+            'category_id' => 'sometimes|exists:opportunity_categories,id',
+            'type' => 'sometimes|in:volunteer,internship,job,fellowship,scholarship,grant,competition',
+            'location' => 'sometimes|string|max:255',
+            'remote_allowed' => 'sometimes|boolean',
+            'duration' => 'sometimes|string|max:255',
+            'time_commitment' => 'sometimes|string|max:255',
+            'start_date' => 'sometimes|date',
+            'end_date' => 'sometimes|date|after_or_equal:start_date',
+            'application_deadline' => 'sometimes|date',
+            'status' => 'sometimes|in:draft,active,paused,closed,archived',
+            'featured' => 'sometimes|boolean',
+            'contact_email' => 'sometimes|email',
+            'contact_phone' => 'sometimes|string|max:20',
+            'external_url' => 'sometimes|url',
+            'skills_required' => 'sometimes|array',
+            'experience_level' => 'sometimes|in:entry,intermediate,senior,executive',
+            'language_requirements' => 'sometimes|array',
+            'age_requirements' => 'sometimes|string|max:255',
+            'education_requirements' => 'sometimes|string|max:255',
+            'max_applicants' => 'sometimes|integer|min:1',
+            'meta_title' => 'sometimes|string|max:255',
+            'meta_description' => 'sometimes|string|max:500',
+            'meta_keywords' => 'sometimes|string|max:500',
+            'tags' => 'sometimes|array'
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $opportunity->update($request->all());
+
+            DB::commit();
+
+            return redirect()->route('admin.opportunities.ui.show', $opportunity)
+                ->with('status', 'Opportunity updated successfully');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('UI Opportunity update error: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Opportunity update failed'])->withInput();
+        }
+    }
 }
