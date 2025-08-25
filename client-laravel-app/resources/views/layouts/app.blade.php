@@ -250,6 +250,7 @@
         </a>
 
         <!-- Navigation -->
+        @include('components.topnavbar')
         @include('components.navbar')
 
         <!-- Flash Messages -->

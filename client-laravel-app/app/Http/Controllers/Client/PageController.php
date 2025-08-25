@@ -245,12 +245,12 @@ class PageController extends Controller
                         'total_users' => \App\Models\User::count(),
                         'total_organizations' => \App\Models\Organization::where('status', 'active')->count(),
                         'total_events' => \App\Models\Event::where('status', 'active')->count(),
-                        'total_volunteers' => \App\Models\User::where('user_type', 'volunteer')->count(),
+                        // 'total_volunteers' => \App\Models\User::where('user_type', 'volunteer')->count(),
                     ],
                     'featured_organizations' => \App\Models\Organization::where('status', 'active')
-                        ->where('featured', true)
+                        ->where('is_featured', true)
                         ->limit(6)
-                        ->get(['id', 'name', 'description', 'logo', 'slug']),
+                        ->get(['id', 'name', 'description', 'logo']),
                 ];
             },
             ['about', 'statistics']
