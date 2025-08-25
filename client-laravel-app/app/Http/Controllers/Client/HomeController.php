@@ -191,24 +191,34 @@ class HomeController extends Controller
             ->where('status', 'active')
             ->ordered()
             ->get([
-                'id', 'title', 'content', 'section_type', 'position',
-                'background_image', 'background_color', 'text_color',
-                'css_classes', 'custom_html', 'image', 'settings'
+                'id', 'section_type', 'title', 'subtitle', 'content', 
+                'image_url', 'settings', 'position', 'status'
             ]);
 
         // Normalize fields for the Blade view
         return $sections->map(function ($section) {
-            // If the table uses background_image instead of image
-            if (empty($section->image) && !empty($section->background_image)) {
-                $section->image = $section->background_image;
-            }
-            // Ensure settings is an array if it's JSON or null
+            // Map image_url to image for backward compatibility with views
+            $section->image = $section->image_url ?? null;
+            
+            // Extract common settings for easier access in views
+            $settings = [];
             if (isset($section->settings) && is_string($section->settings)) {
                 $decoded = json_decode($section->settings, true);
-                $section->settings = is_array($decoded) ? $decoded : [];
-            } elseif (!isset($section->settings) || is_null($section->settings)) {
-                $section->settings = [];
+                $settings = is_array($decoded) ? $decoded : [];
+            } elseif (isset($section->settings) && is_array($section->settings)) {
+                $settings = $section->settings;
             }
+            
+            // Add backward compatibility fields from settings
+            $section->background_image = $settings['background_image'] ?? null;
+            $section->background_color = $settings['background_color'] ?? null;
+            $section->text_color = $settings['text_color'] ?? null;
+            $section->css_classes = $settings['css_classes'] ?? '';
+            $section->custom_html = $settings['custom_html'] ?? null;
+            
+            // Ensure settings is always an array
+            $section->settings = $settings;
+            
             return $section;
         });
     }

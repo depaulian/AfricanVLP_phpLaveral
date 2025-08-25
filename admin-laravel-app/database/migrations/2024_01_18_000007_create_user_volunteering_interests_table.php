@@ -15,11 +15,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->foreignId('category_id')->constrained('volunteering_categories')->onDelete('cascade');
-            $table->enum('interest_level', ['low', 'medium', 'high'])->default('medium');
             $table->timestamps();
             
-            $table->unique(['user_id', 'category_id'], 'unique_user_interest');
-            $table->index(['user_id']);
+            $table->unique(['user_id', 'category_id'], 'user_category_unique');
         });
     }
 

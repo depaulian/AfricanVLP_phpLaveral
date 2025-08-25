@@ -3,478 +3,381 @@
 namespace App\Services;
 
 use App\Models\User;
-use App\Models\UserRegistrationStep;
-use App\Notifications\WelcomeEmail;
-use App\Notifications\RegistrationAbandonmentReminder;
-use Illuminate\Support\Facades\Cache;
+use App\Models\City;
+use App\Models\Country;
+use App\Models\VolunteeringCategory;
+use App\Models\OrganizationCategory;
+use App\Models\UserVolunteeringInterest;
+use App\Models\UserVolunteeringOrganizationCategoryInterest;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+use Exception;
 
 class RegistrationService
 {
-    private const REQUIRED_STEPS = [
-        'basic_info' => [
-            'title' => 'Basic Information',
-            'description' => 'Tell us about yourself',
-            'required_fields' => ['first_name', 'last_name', 'bio'],
-            'optional_fields' => ['profile_image', 'date_of_birth', 'gender', 'phone_number'],
-            'weight' => 25
-        ],
-        'profile_details' => [
-            'title' => 'Profile Details',
-            'description' => 'Complete your profile information',
-            'required_fields' => ['city_id', 'country_id'],
-            'optional_fields' => ['address', 'linkedin_url', 'website_url'],
-            'weight' => 20
-        ],
-        'interests' => [
-            'title' => 'Interests & Skills',
-            'description' => 'What causes are you passionate about?',
-            'required_fields' => ['volunteering_interests'],
-            'optional_fields' => ['skills', 'commitment_level', 'motivation'],
-            'weight' => 30
-        ],
-        'verification' => [
-            'title' => 'Verification',
-            'description' => 'Verify your account and accept terms',
-            'required_fields' => ['email_verified', 'terms_accepted'],
-            'optional_fields' => ['phone_verified'],
-            'weight' => 25
-        ]
-    ];
-
     public function __construct(
-        private UserProfileService $profileService
+        private FileUploadService $fileUploadService
     ) {}
 
     /**
-     * Get registration step configuration
+     * Register a new volunteer user
+     *
+     * @param Request $request
+     * @return array
      */
-    public function getStepConfiguration(string $stepName): ?array
+    public function registerVolunteer(Request $request): array
     {
-        return self::REQUIRED_STEPS[$stepName] ?? null;
-    }
+        try {
+            DB::beginTransaction();
 
-    /**
-     * Get all registration steps
-     */
-    public function getAllSteps(): array
-    {
-        return self::REQUIRED_STEPS;
-    }
+            // Create the user
+            $user = $this->createUser($request);
 
-    /**
-     * Initialize registration for a user
-     */
-    public function initializeRegistration(User $user): void
-    {
-        foreach (array_keys(self::REQUIRED_STEPS) as $stepName) {
-            UserRegistrationStep::updateOrCreate([
+            // Handle interests and preferences
+            $this->handleUserInterests($user, $request);
+
+            // Handle CV upload if provided
+            if ($request->hasFile('cv')) {
+                $this->handleCvUpload($user, $request->file('cv'));
+            }
+
+            // Send verification email
+            $this->sendVerificationEmail($user);
+
+            DB::commit();
+
+            Log::info('User registration completed successfully', [
                 'user_id' => $user->id,
-                'step_name' => $stepName
-            ], [
-                'step_data' => [],
-                'is_completed' => false
+                'email' => $user->email
             ]);
+
+            return [
+                'success' => true,
+                'message' => 'Registration completed successfully! Please check your email to verify your account.',
+                'user' => $user,
+                'redirect_url' => route('verification.notice')
+            ];
+
+        } catch (Exception $e) {
+            DB::rollBack();
+            
+            Log::error('User registration failed', [
+                'error' => $e->getMessage(),
+                'email' => $request->email ?? 'unknown'
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Registration failed. Please try again.',
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Create the user record
+     */
+    private function createUser(Request $request): User
+    {
+        // Validate required fields
+        $this->validateRegistrationData($request);
+
+        $userData = [
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
+            'email' => strtolower(trim($request->email)),
+            'password' => Hash::make($request->password),
+            'phone_number' => $request->phone_number,
+            'address' => $request->address,
+            'city_id' => $request->city_id,
+            'country_id' => $request->country_id,
+            'date_of_birth' => $request->date_of_birth,
+            'gender' => $request->gender,
+            'preferred_language' => $request->preferred_language ?? User::LANGUAGE_ENGLISH,
+            'time_commitment' => $request->time_commitment,
+            'volunteer_mode' => $request->volunteer_mode,
+            'registration_step' => 3, // Mark as completed
+            'status' => 'pending', // Will be active after email verification
+            'email_verification_token' => Str::random(60),
+            'volunteer_notification_preferences' => $this->getDefaultNotificationPreferences(),
+        ];
+
+        return User::create($userData);
+    }
+
+    /**
+     * Handle user interests (volunteering categories and organization categories)
+     */
+    private function handleUserInterests(User $user, Request $request): void
+    {
+        // Handle volunteering interests
+        if ($request->has('volunteering_interests') && is_array($request->volunteering_interests)) {
+            $volunteeringInterests = array_filter($request->volunteering_interests);
+            if (!empty($volunteeringInterests)) {
+                // Validate that categories exist
+                $validCategories = VolunteeringCategory::whereIn('id', $volunteeringInterests)
+                    ->where('status', 'active')
+                    ->pluck('id')
+                    ->toArray();
+                
+                // Clear existing volunteering interests
+                UserVolunteeringInterest::where('user_id', $user->id)->delete();
+                
+                // Add new volunteering interests
+                foreach ($validCategories as $categoryId) {
+                    UserVolunteeringInterest::create([
+                        'user_id' => $user->id,
+                        'category_id' => $categoryId
+                    ]);
+                }
+            }
         }
 
-        // Track registration start
-        $this->trackRegistrationEvent($user, 'registration_started');
+        // Handle organization category interests
+        if ($request->has('organization_interests') && is_array($request->organization_interests)) {
+            $organizationInterests = array_filter($request->organization_interests);
+            if (!empty($organizationInterests)) {
+                // Validate that categories exist
+                $validOrgCategories = OrganizationCategory::whereIn('id', $organizationInterests)
+                    ->pluck('id')
+                    ->toArray();
+                
+                // Clear existing organization category interests
+                UserVolunteeringOrganizationCategoryInterest::where('user_id', $user->id)->delete();
+                
+                // Add new organization category interests
+                foreach ($validOrgCategories as $categoryId) {
+                    UserVolunteeringOrganizationCategoryInterest::create([
+                        'user_id' => $user->id,
+                        'organization_category_id' => $categoryId
+                    ]);
+                }
+            }
+        }
     }
 
     /**
-     * Get detailed registration progress
+     * Handle CV file upload - made public for controller access
+     */
+    public function handleCvUpload(User $user, $cvFile): void
+    {
+        try {
+            $result = $this->fileUploadService->uploadFile($cvFile, 'cvs', [
+                'Metadata' => [
+                    'user-id' => (string)$user->id,
+                    'type' => 'cv',
+                    'uploaded-by' => (string)$user->id
+                ]
+            ]);
+
+            if ($result['success']) {
+                $user->update(['cv_url' => $result['key']]);
+                
+                Log::info('CV uploaded successfully', [
+                    'user_id' => $user->id,
+                    'cv_key' => $result['key']
+                ]);
+            }
+        } catch (Exception $e) {
+            Log::warning('CV upload failed during registration', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+            // Don't fail registration if CV upload fails
+        }
+    }
+
+    /**
+     * Send email verification
+     */
+    private function sendVerificationEmail(User $user): void
+    {
+        try {
+            Mail::send('emails.verify-email', [
+                'user' => $user,
+                'verificationUrl' => route('verification.verify', [
+                    'id' => $user->id,
+                    'hash' => sha1($user->email),
+                    'token' => $user->email_verification_token
+                ])
+            ], function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('Verify Your Email Address - AU-VLP');
+            });
+        } catch (Exception $e) {
+            Log::error('Failed to send verification email', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Validate registration data
+     */
+    private function validateRegistrationData(Request $request): void
+    {
+        $rules = [
+            'first_name' => 'required|string|max:45',
+            'last_name' => 'required|string|max:45',
+            'email' => 'required|email|max:100|unique:users,email',
+            'password' => 'required|string|min:8|confirmed',
+            'phone_number' => 'nullable|string|max:20',
+            'address' => 'nullable|string',
+            'city_id' => 'nullable|exists:cities,id',
+            'country_id' => 'nullable|exists:countries,id',
+            'date_of_birth' => 'nullable|date|before:today',
+            'gender' => 'nullable|in:male,female,other',
+            'preferred_language' => 'nullable|in:' . implode(',', User::LANGUAGES),
+            'time_commitment' => 'nullable|in:' . implode(',', User::TIME_COMMITMENTS),
+            'volunteer_mode' => 'nullable|in:' . implode(',', User::VOLUNTEER_MODES),
+            'volunteering_interests' => 'nullable|array',
+            'volunteering_interests.*' => 'exists:volunteering_categories,id',
+            'organization_interests' => 'nullable|array',
+            'organization_interests.*' => 'exists:organization_categories,id',
+            'interests' => 'nullable|array',
+            'cv' => 'nullable|file|mimes:pdf,doc,docx|max:5120', // 5MB max
+            'terms_accepted' => 'required|accepted'
+        ];
+
+        $messages = [
+            'first_name.required' => 'First name is required',
+            'last_name.required' => 'Last name is required',
+            'email.required' => 'Email address is required',
+            'email.unique' => 'This email address is already registered',
+            'password.required' => 'Password is required',
+            'password.min' => 'Password must be at least 8 characters',
+            'password.confirmed' => 'Passwords do not match',
+            'date_of_birth.before' => 'Please enter a valid date of birth',
+            'cv.mimes' => 'CV must be a PDF, DOC, or DOCX file',
+            'cv.max' => 'CV file size must not exceed 5MB',
+            'terms_accepted.required' => 'You must accept the terms and conditions'
+        ];
+
+        $request->validate($rules, $messages);
+    }
+
+    /**
+     * Get default notification preferences
+     */
+    private function getDefaultNotificationPreferences(): array
+    {
+        return [
+            'new_opportunities' => true,
+            'application_updates' => true,
+            'reminders' => true,
+            'newsletters' => true,
+            'events' => true,
+            'messages' => true,
+            'forum_notifications' => true,
+            'achievement_notifications' => true
+        ];
+    }
+
+    /**
+     * Check if email is available
+     */
+    public function isEmailAvailable(string $email): bool
+    {
+        return !User::where('email', strtolower(trim($email)))->exists();
+    }
+
+    /**
+     * Get registration progress data
      */
     public function getRegistrationProgress(User $user): array
     {
-        $steps = [];
-        $totalWeight = 0;
-        $completedWeight = 0;
-
-        foreach (self::REQUIRED_STEPS as $stepName => $config) {
-            $stepRecord = $user->registrationSteps()->where('step_name', $stepName)->first();
-            
-            $stepProgress = [
-                'name' => $stepName,
-                'title' => $config['title'],
-                'description' => $config['description'],
-                'is_completed' => $stepRecord?->is_completed ?? false,
-                'completed_at' => $stepRecord?->completed_at,
-                'step_data' => $stepRecord?->step_data ?? [],
-                'weight' => $config['weight'],
-                'completion_percentage' => $this->calculateStepCompletion($user, $stepName, $config)
-            ];
-
-            $steps[$stepName] = $stepProgress;
-            $totalWeight += $config['weight'];
-            
-            if ($stepProgress['is_completed']) {
-                $completedWeight += $config['weight'];
-            }
-        }
-
-        $overallPercentage = $totalWeight > 0 ? round(($completedWeight / $totalWeight) * 100) : 0;
-
+        $totalSteps = 3;
+        $currentStep = $user->registration_step ?? 1;
+        
         return [
-            'steps' => $steps,
-            'overall_percentage' => $overallPercentage,
-            'completed_steps' => collect($steps)->where('is_completed', true)->count(),
-            'total_steps' => count($steps),
-            'is_complete' => $this->isRegistrationComplete($user),
-            'next_step' => $this->getNextStep($user),
-            'started_at' => $user->created_at,
-            'estimated_completion_time' => $this->getEstimatedCompletionTime($user)
+            'current_step' => $currentStep,
+            'total_steps' => $totalSteps,
+            'progress_percentage' => min(100, ($currentStep / $totalSteps) * 100),
+            'completed' => !is_null($user->registration_completed_at),
+            'email_verified' => !is_null($user->email_verified_at)
         ];
     }
 
     /**
-     * Calculate completion percentage for a specific step
-     */
-    private function calculateStepCompletion(User $user, string $stepName, array $config): int
-    {
-        $stepRecord = $user->registrationSteps()->where('step_name', $stepName)->first();
-        
-        if ($stepRecord?->is_completed) {
-            return 100;
-        }
-
-        $requiredFields = $config['required_fields'];
-        $optionalFields = $config['optional_fields'] ?? [];
-        $allFields = array_merge($requiredFields, $optionalFields);
-        
-        if (empty($allFields)) {
-            return 0;
-        }
-
-        $completedFields = 0;
-        $stepData = $stepRecord?->step_data ?? [];
-
-        // Check completion based on step type
-        switch ($stepName) {
-            case 'basic_info':
-                if (!empty($user->first_name)) $completedFields++;
-                if (!empty($user->last_name)) $completedFields++;
-                if (!empty($user->profile?->bio)) $completedFields++;
-                if (!empty($user->profile?->profile_image_url)) $completedFields++;
-                if (!empty($user->profile?->date_of_birth)) $completedFields++;
-                if (!empty($user->profile?->phone_number)) $completedFields++;
-                break;
-
-            case 'profile_details':
-                if (!empty($user->profile?->city_id)) $completedFields++;
-                if (!empty($user->profile?->country_id)) $completedFields++;
-                if (!empty($user->profile?->address)) $completedFields++;
-                if (!empty($user->profile?->linkedin_url)) $completedFields++;
-                break;
-
-            case 'interests':
-                if ($user->volunteeringInterests()->count() > 0) $completedFields++;
-                if ($user->skills()->count() > 0) $completedFields++;
-                if (!empty($stepData['commitment_level'])) $completedFields++;
-                if (!empty($stepData['motivation'])) $completedFields++;
-                break;
-
-            case 'verification':
-                if ($user->hasVerifiedEmail()) $completedFields++;
-                if (!empty($stepData['terms_accepted'])) $completedFields++;
-                if (!empty($stepData['phone_verified'])) $completedFields++;
-                break;
-        }
-
-        return round(($completedFields / count($allFields)) * 100);
-    }
-
-    /**
-     * Complete a registration step
-     */
-    public function completeStep(User $user, string $stepName, array $stepData = []): UserRegistrationStep
-    {
-        $config = $this->getStepConfiguration($stepName);
-        if (!$config) {
-            throw new \InvalidArgumentException("Invalid step name: {$stepName}");
-        }
-
-        // Validate required fields
-        $this->validateStepData($stepName, $stepData, $config);
-
-        $step = UserRegistrationStep::updateOrCreate([
-            'user_id' => $user->id,
-            'step_name' => $stepName
-        ], [
-            'step_data' => $stepData,
-            'is_completed' => true,
-            'completed_at' => now()
-        ]);
-
-        // Track step completion
-        $this->trackRegistrationEvent($user, 'step_completed', [
-            'step_name' => $stepName,
-            'completion_time' => now()->diffInSeconds($user->created_at)
-        ]);
-
-        // Check if registration is now complete
-        if ($this->isRegistrationComplete($user)) {
-            $this->completeRegistration($user);
-        }
-
-        return $step;
-    }
-
-    /**
-     * Validate step data
-     */
-    private function validateStepData(string $stepName, array $stepData, array $config): void
-    {
-        $requiredFields = $config['required_fields'];
-        
-        foreach ($requiredFields as $field) {
-            if (empty($stepData[$field])) {
-                throw new \InvalidArgumentException("Required field '{$field}' is missing for step '{$stepName}'");
-            }
-        }
-    }
-
-    /**
-     * Check if registration is complete
-     */
-    public function isRegistrationComplete(User $user): bool
-    {
-        $requiredSteps = array_keys(self::REQUIRED_STEPS);
-        
-        $completedSteps = $user->registrationSteps()
-            ->whereIn('step_name', $requiredSteps)
-            ->where('is_completed', true)
-            ->count();
-            
-        return $completedSteps === count($requiredSteps);
-    }
-
-    /**
-     * Get the next step to complete
-     */
-    public function getNextStep(User $user): ?string
-    {
-        foreach (array_keys(self::REQUIRED_STEPS) as $stepName) {
-            $stepRecord = $user->registrationSteps()->where('step_name', $stepName)->first();
-            if (!$stepRecord || !$stepRecord->is_completed) {
-                return $stepName;
-            }
-        }
-        
-        return null;
-    }
-
-    /**
-     * Complete the entire registration process
+     * Complete registration process
      */
     public function completeRegistration(User $user): void
     {
-        // Update user registration status
         $user->update([
             'registration_completed_at' => now(),
-            'onboarding_completed' => true
+            'status' => 'active'
         ]);
 
         // Send welcome email
-        $user->notify(new WelcomeEmail());
-
-        // Track registration completion
-        $this->trackRegistrationEvent($user, 'registration_completed', [
-            'total_time' => now()->diffInSeconds($user->created_at),
-            'completion_date' => now()->toDateString()
-        ]);
-
-        // Clear any abandonment reminders
-        $this->clearAbandonmentReminders($user);
-
-        Log::info('User registration completed', [
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'completion_time' => now()->diffInSeconds($user->created_at)
-        ]);
+        $this->sendWelcomeEmail($user);
     }
 
     /**
-     * Save step progress (for auto-save functionality)
+     * Send welcome email
      */
-    public function saveStepProgress(User $user, string $stepName, array $stepData): void
+    private function sendWelcomeEmail(User $user): void
     {
-        UserRegistrationStep::updateOrCreate([
-            'user_id' => $user->id,
-            'step_name' => $stepName
-        ], [
-            'step_data' => $stepData,
-            'updated_at' => now()
-        ]);
-
-        // Cache the progress for quick access
-        Cache::put("registration_progress_{$user->id}_{$stepName}", $stepData, 3600);
-    }
-
-    /**
-     * Get estimated completion time
-     */
-    private function getEstimatedCompletionTime(User $user): int
-    {
-        $completedSteps = $user->registrationSteps()->where('is_completed', true)->count();
-        $totalSteps = count(self::REQUIRED_STEPS);
-        $remainingSteps = $totalSteps - $completedSteps;
-        
-        // Estimate 3-5 minutes per step
-        return $remainingSteps * 4; // minutes
-    }
-
-    /**
-     * Track registration abandonment and send reminders
-     */
-    public function trackAbandonmentAndSendReminders(): void
-    {
-        // Find users who started registration but haven't completed it
-        $abandonedUsers = User::whereNull('registration_completed_at')
-            ->where('created_at', '>=', now()->subDays(30))
-            ->where('created_at', '<=', now()->subHours(24))
-            ->whereHas('registrationSteps')
-            ->get();
-
-        foreach ($abandonedUsers as $user) {
-            $this->sendAbandonmentReminder($user);
+        try {
+            Mail::send('emails.welcome', [
+                'user' => $user
+            ], function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('Welcome to AU-VLP - Your Volunteering Journey Begins!');
+            });
+        } catch (Exception $e) {
+            Log::error('Failed to send welcome email', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
         }
     }
 
     /**
-     * Send abandonment reminder
+     * Get countries for registration form
      */
-    private function sendAbandonmentReminder(User $user): void
+    public function getCountries()
     {
-        $lastReminderKey = "abandonment_reminder_{$user->id}";
-        
-        // Don't send more than one reminder per week
-        if (Cache::has($lastReminderKey)) {
-            return;
-        }
-
-        $progress = $this->getRegistrationProgress($user);
-        
-        $user->notify(new RegistrationAbandonmentReminder($progress));
-        
-        Cache::put($lastReminderKey, true, 7 * 24 * 60); // 7 days
-        
-        $this->trackRegistrationEvent($user, 'abandonment_reminder_sent', [
-            'days_since_start' => now()->diffInDays($user->created_at),
-            'completion_percentage' => $progress['overall_percentage']
-        ]);
+        return Country::orderBy('name')->get(['id', 'name', 'code']);
     }
 
     /**
-     * Clear abandonment reminders
+     * Get cities by country for registration form
      */
-    private function clearAbandonmentReminders(User $user): void
+    public function getCitiesByCountry(int $countryId)
     {
-        Cache::forget("abandonment_reminder_{$user->id}");
+        return City::where('country_id', $countryId)
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     /**
-     * Track registration events for analytics
+     * Auto-save registration progress
      */
-    private function trackRegistrationEvent(User $user, string $event, array $data = []): void
+    public function autoSaveProgress(User $user, array $data): void
     {
-        $eventData = array_merge([
-            'user_id' => $user->id,
-            'event' => $event,
-            'timestamp' => now(),
-            'user_agent' => request()->userAgent(),
-            'ip_address' => request()->ip()
-        ], $data);
-
-        // Store in cache for analytics processing
-        $cacheKey = "registration_events_" . now()->format('Y-m-d');
-        $events = Cache::get($cacheKey, []);
-        $events[] = $eventData;
-        Cache::put($cacheKey, $events, 24 * 60); // 24 hours
-
-        Log::info('Registration event tracked', $eventData);
-    }
-
-    /**
-     * Get registration analytics
-     */
-    public function getRegistrationAnalytics(Carbon $startDate = null, Carbon $endDate = null): array
-    {
-        $startDate = $startDate ?? now()->subDays(30);
-        $endDate = $endDate ?? now();
-
-        $totalRegistrations = User::whereBetween('created_at', [$startDate, $endDate])->count();
-        $completedRegistrations = User::whereBetween('created_at', [$startDate, $endDate])
-            ->whereNotNull('registration_completed_at')
-            ->count();
-
-        $conversionRate = $totalRegistrations > 0 ? ($completedRegistrations / $totalRegistrations) * 100 : 0;
-
-        // Step completion rates
-        $stepCompletionRates = [];
-        foreach (array_keys(self::REQUIRED_STEPS) as $stepName) {
-            $stepCompletions = UserRegistrationStep::where('step_name', $stepName)
-                ->where('is_completed', true)
-                ->whereHas('user', function ($query) use ($startDate, $endDate) {
-                    $query->whereBetween('created_at', [$startDate, $endDate]);
-                })
-                ->count();
-            
-            $stepCompletionRates[$stepName] = $totalRegistrations > 0 ? 
-                ($stepCompletions / $totalRegistrations) * 100 : 0;
-        }
-
-        // Average completion time
-        $avgCompletionTime = User::whereBetween('created_at', [$startDate, $endDate])
-            ->whereNotNull('registration_completed_at')
-            ->selectRaw('AVG(TIMESTAMPDIFF(MINUTE, created_at, registration_completed_at)) as avg_time')
-            ->value('avg_time');
-
-        return [
-            'period' => [
-                'start_date' => $startDate->toDateString(),
-                'end_date' => $endDate->toDateString()
-            ],
-            'total_registrations' => $totalRegistrations,
-            'completed_registrations' => $completedRegistrations,
-            'conversion_rate' => round($conversionRate, 2),
-            'step_completion_rates' => $stepCompletionRates,
-            'average_completion_time_minutes' => round($avgCompletionTime ?? 0, 2),
-            'abandonment_rate' => round(100 - $conversionRate, 2)
-        ];
-    }
-
-    /**
-     * Get registration funnel data
-     */
-    public function getRegistrationFunnel(Carbon $startDate = null, Carbon $endDate = null): array
-    {
-        $startDate = $startDate ?? now()->subDays(30);
-        $endDate = $endDate ?? now();
-
-        $funnel = [];
-        $totalUsers = User::whereBetween('created_at', [$startDate, $endDate])->count();
-        
-        $funnel['started'] = [
-            'count' => $totalUsers,
-            'percentage' => 100
-        ];
-
-        foreach (self::REQUIRED_STEPS as $stepName => $config) {
-            $completedCount = UserRegistrationStep::where('step_name', $stepName)
-                ->where('is_completed', true)
-                ->whereHas('user', function ($query) use ($startDate, $endDate) {
-                    $query->whereBetween('created_at', [$startDate, $endDate]);
-                })
-                ->count();
-
-            $funnel[$stepName] = [
-                'count' => $completedCount,
-                'percentage' => $totalUsers > 0 ? round(($completedCount / $totalUsers) * 100, 2) : 0,
-                'title' => $config['title']
+        try {
+            // Only save specific fields to avoid overwriting completed data
+            $allowedFields = [
+                'phone_number', 'address', 'city_id', 'country_id',
+                'date_of_birth', 'gender', 'preferred_language',
+                'time_commitment', 'volunteer_mode'
             ];
-        }
 
-        return $funnel;
+            $updateData = array_intersect_key($data, array_flip($allowedFields));
+            
+            if (!empty($updateData)) {
+                $user->update($updateData);
+            }
+        } catch (Exception $e) {
+            Log::warning('Auto-save failed', [
+                'user_id' => $user->id,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }

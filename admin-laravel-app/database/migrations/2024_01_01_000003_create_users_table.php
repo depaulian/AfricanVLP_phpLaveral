@@ -25,6 +25,7 @@ return new class extends Migration
             $table->string('profile_image_thumbnail', 255)->nullable();
             $table->string('profile_image_medium', 255)->nullable();
             $table->string('profile_image_large', 255)->nullable();
+            $table->string('cv_url', 500)->nullable();
             $table->date('date_of_birth')->nullable();
             $table->enum('gender', ['male', 'female', 'other'])->nullable();
             $table->enum('status', ['active', 'inactive', 'suspended', 'pending'])->default('pending');
@@ -38,17 +39,23 @@ return new class extends Migration
             $table->json('volunteer_notification_preferences')->nullable();
             $table->integer('registration_step')->default(1);
             $table->timestamp('registration_completed_at')->nullable();
+            $table->enum('preferred_language', ['English', 'Français', 'Português', 'العربية'])->nullable();
+            $table->enum('time_commitment', ['Weekly', 'Monthly', 'Quarterly', 'Annually'])->nullable();
+            $table->enum('volunteer_mode', ['Virtual', 'Physical', 'Both'])->nullable();
             $table->rememberToken();
             $table->timestamps();
             
-            // Foreign key constraints
-            $table->foreign('city_id')->references('id')->on('cities')->onDelete('set null');
-            $table->foreign('country_id')->references('id')->on('countries')->onDelete('set null');
+            $table->foreign('city_id', 'users_city_fk')->references('id')->on('cities')->onDelete('set null');
+            $table->foreign('country_id', 'users_country_fk')->references('id')->on('countries')->onDelete('set null');
             
-            $table->index('city_id', 'users_city_id_foreign');
-            $table->index('country_id', 'users_country_id_foreign');
+            $table->index('city_id');
+            $table->index('country_id');
             $table->index(['email', 'status']);
             $table->index(['first_name', 'last_name']);
+            $table->index('preferred_language');
+            $table->index('time_commitment');
+            $table->index('volunteer_mode');
+            $table->index('registration_step');
         });
     }
 

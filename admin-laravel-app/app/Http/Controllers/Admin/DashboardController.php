@@ -27,8 +27,8 @@ class DashboardController extends Controller
             'published_news' => News::where('status', 'published')->count(),
         ];
 
-        $recent_users = User::latest('created')->take(5)->get();
-        $recent_organizations = Organization::latest('created')->take(5)->get();
+        $recent_users = User::latest('created_at')->take(5)->get();
+        $recent_organizations = Organization::latest('created_at')->take(5)->get();
         $upcoming_events = Event::where('start_date', '>', now())
                                 ->orderBy('start_date')
                                 ->take(5)
@@ -46,12 +46,12 @@ class DashboardController extends Controller
             'users' => [
                 'total' => User::count(),
                 'active' => User::where('status', 'active')->count(),
-                'new_this_month' => User::whereMonth('created', now()->month)->count(),
+                'new_this_month' => User::whereMonth('created_at', now()->month)->count(),
             ],
             'organizations' => [
                 'total' => Organization::count(),
                 'active' => Organization::where('status', 'active')->count(),
-                'new_this_month' => Organization::whereMonth('created', now()->month)->count(),
+                'new_this_month' => Organization::whereMonth('created_at', now()->month)->count(),
             ],
             'events' => [
                 'total' => Event::count(),
@@ -61,7 +61,7 @@ class DashboardController extends Controller
             'news' => [
                 'total' => News::count(),
                 'published' => News::where('status', 'published')->count(),
-                'this_month' => News::whereMonth('created', now()->month)->count(),
+                'this_month' => News::whereMonth('created_at', now()->month)->count(),
             ],
         ];
 

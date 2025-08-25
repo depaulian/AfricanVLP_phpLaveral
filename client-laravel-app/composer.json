@@ -6,10 +6,12 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "aws/aws-sdk-php": "^3.356",
         "cloudinary/cloudinary_php": "^2.0",
         "google/cloud-translate": "^1.12",
         "guzzlehttp/guzzle": "^7.2",
         "intervention/image": "^3.0",
+        "intervention/image-laravel": "^1.5",
         "laravel/framework": "^11.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",

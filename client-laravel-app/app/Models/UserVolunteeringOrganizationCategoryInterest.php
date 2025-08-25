@@ -6,21 +6,21 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class UserVolunteeringInterest extends Model
+class UserVolunteeringOrganizationCategoryInterest extends Model
 {
     use HasFactory;
 
     /**
      * The table associated with the model.
      */
-    protected $table = 'user_volunteering_interests';
+    protected $table = 'user_volunteering_organization_category_interests';
 
     /**
      * The attributes that are mass assignable.
      */
     protected $fillable = [
         'user_id',
-        'category_id',
+        'organization_category_id',
     ];
 
     /**
@@ -28,11 +28,11 @@ class UserVolunteeringInterest extends Model
      */
     protected $casts = [
         'user_id' => 'integer',
-        'category_id' => 'integer',
+        'organization_category_id' => 'integer',
     ];
 
     /**
-     * Get the user that owns the volunteering interest.
+     * Get the user that owns the organization category interest.
      */
     public function user(): BelongsTo
     {
@@ -40,10 +40,10 @@ class UserVolunteeringInterest extends Model
     }
 
     /**
-     * Get the volunteering category for this interest.
+     * Get the organization category for this interest.
      */
-    public function category(): BelongsTo
+    public function organizationCategory(): BelongsTo
     {
-        return $this->belongsTo(VolunteeringCategory::class);
+        return $this->belongsTo(OrganizationCategory::class);
     }
 }

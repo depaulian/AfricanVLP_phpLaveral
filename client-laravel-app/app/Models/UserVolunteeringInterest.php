@@ -10,14 +10,29 @@ class UserVolunteeringInterest extends Model
 {
     use HasFactory;
 
+    /**
+     * The table associated with the model.
+     */
+    protected $table = 'user_volunteering_interests';
+
+    /**
+     * The attributes that are mass assignable.
+     */
     protected $fillable = [
         'user_id',
         'category_id',
-        'interest_level'
     ];
 
     /**
-     * Get the user this interest belongs to
+     * The attributes that should be cast.
+     */
+    protected $casts = [
+        'user_id' => 'integer',
+        'category_id' => 'integer',
+    ];
+
+    /**
+     * Get the user that owns the volunteering interest.
      */
     public function user(): BelongsTo
     {
@@ -25,84 +40,10 @@ class UserVolunteeringInterest extends Model
     }
 
     /**
-     * Get the category this interest is for
+     * Get the volunteering category for this interest.
      */
     public function category(): BelongsTo
     {
-        return $this->belongsTo(VolunteeringCategory::class, 'category_id');
-    }
-
-    /**
-     * Scope to filter by user
-     */
-    public function scopeForUser($query, $userId)
-    {
-        return $query->where('user_id', $userId);
-    }
-
-    /**
-     * Scope to filter by category
-     */
-    public function scopeForCategory($query, $categoryId)
-    {
-        return $query->where('category_id', $categoryId);
-    }
-
-    /**
-     * Scope to filter by interest level
-     */
-    public function scopeByInterestLevel($query, $level)
-    {
-        return $query->where('interest_level', $level);
-    }
-
-    /**
-     * Scope to get high interest items
-     */
-    public function scopeHighInterest($query)
-    {
-        return $query->where('interest_level', 'high');
-    }
-
-    /**
-     * Get interest level badge color
-     */
-    public function getInterestLevelColorAttribute(): string
-    {
-        return match ($this->interest_level) {
-            'high' => 'success',
-            'medium' => 'warning',
-            'low' => 'secondary',
-            default => 'secondary'
-        };
-    }
-
-    /**
-     * Get formatted interest level
-     */
-    public function getFormattedInterestLevelAttribute(): string
-    {
-        return ucfirst($this->interest_level);
-    }
-
-    /**
-     * Get interest level weight for matching algorithms
-     */
-    public function getInterestWeightAttribute(): int
-    {
-        return match ($this->interest_level) {
-            'high' => 3,
-            'medium' => 2,
-            'low' => 1,
-            default => 1
-        };
-    }
-
-    /**
-     * Get the interest level label.
-     */
-    public function getInterestLevelLabelAttribute(): string
-    {
-        return ucfirst($this->interest_level);
+        return $this->belongsTo(VolunteeringCategory::class);
     }
 }

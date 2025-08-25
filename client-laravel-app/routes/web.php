@@ -75,12 +75,12 @@ Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])-
 Route::post('/email/verification-notification', [AuthController::class, 'resendVerificationEmail'])->name('verification.send');
 
 // Public Content Routes
-Route::get('/news', [NewsController::class, 'publicIndex'])->name('news.public');
-Route::get('/news/{news}', [NewsController::class, 'publicShow'])->name('news.public.show');
-Route::get('/events', [EventController::class, 'publicIndex'])->name('events.public');
-Route::get('/events/{event}', [EventController::class, 'publicShow'])->name('events.public.show');
-Route::get('/blog', [BlogController::class, 'publicIndex'])->name('blog.public');
-Route::get('/blog/{blog}', [BlogController::class, 'publicShow'])->name('blog.public.show');
+Route::get('public/news', [NewsController::class, 'publicIndex'])->name('news.public');
+Route::get('public/news/{news}', [NewsController::class, 'publicShow'])->name('news.public.show');
+Route::get('public/events', [EventController::class, 'publicIndex'])->name('events.public');
+Route::get('public/events/{event}', [EventController::class, 'publicShow'])->name('events.public.show');
+Route::get('/public/blog', [BlogController::class, 'publicIndex'])->name('blog.public');
+Route::get('/public/blog/{blog}', [BlogController::class, 'publicShow'])->name('blog.public.show');
 Route::get('/opportunities', [OpportunityController::class, 'publicIndex'])->name('opportunities.public');
 Route::get('/opportunities/{opportunity}', [OpportunityController::class, 'publicShow'])->name('opportunities.public.show');
 Route::get('/resources', [ResourceController::class, 'publicIndex'])->name('resources.public');
@@ -576,6 +576,19 @@ Route::prefix('pages')->name('pages.')->group(function () {
     Route::get('/sitemap', [PageController::class, 'sitemap'])->name('sitemap');
 });
 
+// Email availability check route (should be added before the protected routes)
+Route::post('/register/check-email', [RegistrationController::class, 'checkEmail'])->name('register.check-email');
+
+// Cities by country API route
+Route::get('/api/countries/{country}/cities', [RegistrationController::class, 'getCitiesByCountry'])->name('api.cities.by-country');
+
+// Registration API routes for AJAX calls
+Route::prefix('api/registration')->name('api.registration.')->group(function () {
+    Route::get('/volunteering-categories', [RegistrationController::class, 'getVolunteeringCategories'])->name('volunteering-categories');
+    Route::get('/organization-categories', [RegistrationController::class, 'getOrganizationCategories'])->name('organization-categories');
+});
+
+
 // Registration Routes
 Route::prefix('registration')->name('registration.')->group(function () {
     // Registration type selection (public)
@@ -585,7 +598,9 @@ Route::prefix('registration')->name('registration.')->group(function () {
     
     // Individual volunteer registration (existing)
     Route::prefix('volunteer')->name('volunteer.')->group(function () {
-        Route::get('/start', [RegistrationController::class, 'start'])->name('start');
+        Route::get('/register', [RegistrationController::class, 'showRegistrationForm'])->name('start');
+        Route::post('/register', [RegistrationController::class, 'register'])->name('register');
+        
         Route::middleware('auth')->group(function () {
             Route::get('/', [RegistrationController::class, 'index'])->name('index');
             Route::get('/{stepName}', [RegistrationController::class, 'step'])->name('step');
