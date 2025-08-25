@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\Country;
 use App\Models\City;
-use App\Models\CategoryOfOrganization;
+use App\Models\OrganizationCategory;
 use App\Models\InstitutionType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -19,7 +19,7 @@ class OrganizationController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Organization::with(['country', 'city', 'categoryOfOrganization', 'institutionType']);
+        $query = Organization::with(['country', 'city', 'category', 'institutionType']);
 
         // Search functionality
         if ($request->filled('search')) {
@@ -54,7 +54,7 @@ class OrganizationController extends Controller
         $organizations = $query->paginate(20)->withQueryString();
 
         $countries = Country::orderBy('name')->get();
-        $categories = CategoryOfOrganization::orderBy('name')->get();
+        $categories = OrganizationCategory::orderBy('name')->get();
         $statuses = ['active', 'inactive', 'pending', 'suspended'];
 
         return view('admin.organizations.index', compact('organizations', 'countries', 'categories', 'statuses'));
@@ -66,7 +66,7 @@ class OrganizationController extends Controller
     public function create()
     {
         $countries = Country::orderBy('name')->get();
-        $categories = CategoryOfOrganization::orderBy('name')->get();
+        $categories = OrganizationCategory::orderBy('name')->get();
         $institutionTypes = InstitutionType::orderBy('name')->get();
         
         return view('admin.organizations.create', compact('countries', 'categories', 'institutionTypes'));
