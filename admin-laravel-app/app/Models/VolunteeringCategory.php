@@ -16,7 +16,6 @@ class VolunteeringCategory extends Model
         'name',
         'slug',
         'description',
-        'parent_id',
         'icon_url',
         'color_code',
         'sort_order',
@@ -28,21 +27,6 @@ class VolunteeringCategory extends Model
         'settings' => 'array'
     ];
 
-    /**
-     * Get the parent category
-     */
-    public function parent(): BelongsTo
-    {
-        return $this->belongsTo(VolunteeringCategory::class, 'parent_id');
-    }
-
-    /**
-     * Get the child categories
-     */
-    public function children(): HasMany
-    {
-        return $this->hasMany(VolunteeringCategory::class, 'parent_id');
-    }
 
     /**
      * Get all descendant categories recursively
@@ -138,19 +122,5 @@ class VolunteeringCategory extends Model
         }
 
         return $depth;
-    }
-
-    /**
-     * Get opportunities count including child categories
-     */
-    public function getTotalOpportunitiesCountAttribute(): int
-    {
-        $count = $this->opportunities()->count();
-        
-        foreach ($this->children as $child) {
-            $count += $child->total_opportunities_count;
-        }
-
-        return $count;
     }
 }

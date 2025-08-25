@@ -2,17 +2,17 @@
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-20">
           <!-- Logo -->
-          <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-6">
             <div class="">
               <img src="{{ asset('img/au-logo.svg') }}" alt="AU Logo" class="h-20">
            </div>
               <div>
-                  <p class="text-sm text-gray-500">Volunteer Leadership Platform</p>
+                  <p class="text-sm text-gray-500">Volunteering Linkage Platform</p>
               </div>
           </div>
           
           <!-- Navigation Links - Desktop -->
-          <div class="hidden lg:flex items-center space-x-4">
+          <div class="hidden lg:flex items-center space-x-5">
               <!-- Home -->
               <a href="{{ route('home') }}" 
                  class="relative px-4 py-2 text-gray-700 hover:text-green-600 font-medium transition-all duration-300 group {{ request()->routeIs('home') ? 'text-green-600' : '' }}">

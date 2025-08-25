@@ -576,6 +576,19 @@ Route::prefix('pages')->name('pages.')->group(function () {
     Route::get('/sitemap', [PageController::class, 'sitemap'])->name('sitemap');
 });
 
+// Email availability check route (should be added before the protected routes)
+Route::post('/register/check-email', [RegistrationController::class, 'checkEmail'])->name('register.check-email');
+
+// Cities by country API route
+Route::get('/api/countries/{country}/cities', [RegistrationController::class, 'getCitiesByCountry'])->name('api.cities.by-country');
+
+// Registration API routes for AJAX calls
+Route::prefix('api/registration')->name('api.registration.')->group(function () {
+    Route::get('/volunteering-categories', [RegistrationController::class, 'getVolunteeringCategories'])->name('volunteering-categories');
+    Route::get('/organization-categories', [RegistrationController::class, 'getOrganizationCategories'])->name('organization-categories');
+});
+
+
 // Registration Routes
 Route::prefix('registration')->name('registration.')->group(function () {
     // Registration type selection (public)
@@ -585,7 +598,9 @@ Route::prefix('registration')->name('registration.')->group(function () {
     
     // Individual volunteer registration (existing)
     Route::prefix('volunteer')->name('volunteer.')->group(function () {
-        Route::get('/start', [RegistrationController::class, 'start'])->name('start');
+        Route::get('/register', [RegistrationController::class, 'showRegistrationForm'])->name('start');
+        Route::post('/register', [RegistrationController::class, 'register'])->name('register');
+        
         Route::middleware('auth')->group(function () {
             Route::get('/', [RegistrationController::class, 'index'])->name('index');
             Route::get('/{stepName}', [RegistrationController::class, 'step'])->name('step');

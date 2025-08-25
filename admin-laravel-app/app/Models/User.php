@@ -15,6 +15,40 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, Auditable;
 
+     // Constants for preferred_language
+     public const LANGUAGE_ENGLISH = 'English';
+     public const LANGUAGE_FRENCH = 'Français';
+     public const LANGUAGE_PORTUGUESE = 'Português';
+     public const LANGUAGE_ARABIC = 'العربية';
+     public const LANGUAGES = [
+         self::LANGUAGE_ENGLISH,
+         self::LANGUAGE_FRENCH,
+         self::LANGUAGE_PORTUGUESE,
+         self::LANGUAGE_ARABIC,
+     ];
+ 
+     // Constants for time_commitment
+     public const COMMITMENT_WEEKLY = 'Weekly';
+     public const COMMITMENT_MONTHLY = 'Monthly';
+     public const COMMITMENT_QUARTERLY = 'Quarterly';
+     public const COMMITMENT_ANNUALLY = 'Annually';
+     public const TIME_COMMITMENTS = [
+         self::COMMITMENT_WEEKLY,
+         self::COMMITMENT_MONTHLY,
+         self::COMMITMENT_QUARTERLY,
+         self::COMMITMENT_ANNUALLY,
+     ];
+ 
+     // Constants for volunteer_mode
+     public const MODE_VIRTUAL = 'Virtual';
+     public const MODE_PHYSICAL = 'Physical';
+     public const MODE_BOTH = 'Both';
+     public const VOLUNTEER_MODES = [
+         self::MODE_VIRTUAL,
+         self::MODE_PHYSICAL,
+         self::MODE_BOTH,
+     ];
+
     protected $fillable = [
         'first_name',
         'last_name',
@@ -28,6 +62,7 @@ class User extends Authenticatable
         'profile_image_thumbnail',
         'profile_image_medium',
         'profile_image_large',
+        'cv_url',
         'date_of_birth',
         'gender',
         'status',
@@ -41,6 +76,9 @@ class User extends Authenticatable
         'volunteer_notification_preferences',
         'registration_step',
         'registration_completed_at',
+        'preferred_language',
+        'time_commitment',
+        'volunteer_mode',
     ];
 
     protected $hidden = [
@@ -125,6 +163,41 @@ class User extends Authenticatable
         return $this->hasMany(Blog::class, 'author_id');
     }
 
+    /**
+     * Get the user's volunteering interests.
+     */
+    public function volunteeringInterests(): HasMany
+    {
+        return $this->hasMany(UserVolunteeringInterest::class);
+    }
+
+    /**
+     * Get the volunteering categories the user is interested in.
+     */
+    public function volunteeringCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(VolunteeringCategory::class, 'user_volunteering_interests');
+    }
+
+    /**
+     * Get the user's organization category interests.
+     */
+    public function organizationCategoryInterests(): HasMany
+    {
+        return $this->hasMany(UserVolunteeringOrganizationCategoryInterest::class);
+    }
+
+    /**
+     * Get the organization categories the user is interested in.
+     */
+    public function organizationCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            OrganizationCategory::class, 
+            'user_volunteering_organization_category_interests'
+        );
+    }
+
     // Status check methods
     public function isAdmin(): bool
     {
@@ -181,6 +254,30 @@ class User extends Authenticatable
     public function getProfileImageUrlAttribute(): string
     {
         return $this->getProfileImageUrl('medium');
+    }
+
+    /**
+     * Get the CV URL with fallback.
+     */
+    public function getCvUrl(): ?string
+    {
+        if ($this->cv_url) {
+            // If it's a full URL, return as-is, otherwise prepend storage path
+            if (str_starts_with($this->cv_url, 'http')) {
+                return $this->cv_url;
+            }
+            return asset('storage/cvs/' . $this->cv_url);
+        }
+        
+        return null;
+    }
+
+    /**
+     * Check if user has uploaded a CV.
+     */
+    public function hasCv(): bool
+    {
+        return !empty($this->cv_url);
     }
 
     /**
@@ -269,6 +366,11 @@ class User extends Authenticatable
         return $query->whereNotNull('profile_image');
     }
 
+    public function scopeWithCv($query)
+    {
+        return $query->whereNotNull('cv_url');
+    }
+
     public function scopeByGender($query, string $gender)
     {
         return $query->where('gender', $gender);
@@ -294,6 +396,21 @@ class User extends Authenticatable
         return $query->whereNull('registration_completed_at');
     }
 
+    public function scopeByVolunteerMode($query, string $mode)
+    {
+        return $query->where('volunteer_mode', $mode);
+    }
+
+    public function scopeByTimeCommitment($query, string $commitment)
+    {
+        return $query->where('time_commitment', $commitment);
+    }
+
+    public function scopeByLanguage($query, string $language)
+    {
+        return $query->where('preferred_language', $language);
+    }
+
     /**
      * Update last login information.
      */
@@ -314,5 +431,69 @@ class User extends Authenticatable
             'registration_completed_at' => now(),
             'status' => 'active',
         ]);
+    }
+
+    /**
+     * Check if user is interested in a specific volunteering category.
+     */
+    public function isInterestedInCategory(int $categoryId): bool
+    {
+        return $this->volunteeringCategories()->where('volunteering_categories.id', $categoryId)->exists();
+    }
+
+    /**
+     * Check if user is interested in a specific organization category.
+     */
+    public function isInterestedInOrganizationCategory(int $organizationCategoryId): bool
+    {
+        return $this->organizationCategories()->where('organization_categories.id', $organizationCategoryId)->exists();
+    }
+
+    /**
+     * Add volunteering category interest.
+     */
+    public function addVolunteeringInterest(int $categoryId): bool
+    {
+        if (!$this->isInterestedInCategory($categoryId)) {
+            $this->volunteeringCategories()->attach($categoryId);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Remove volunteering category interest.
+     */
+    public function removeVolunteeringInterest(int $categoryId): bool
+    {
+        if ($this->isInterestedInCategory($categoryId)) {
+            $this->volunteeringCategories()->detach($categoryId);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Add organization category interest.
+     */
+    public function addOrganizationCategoryInterest(int $organizationCategoryId): bool
+    {
+        if (!$this->isInterestedInOrganizationCategory($organizationCategoryId)) {
+            $this->organizationCategories()->attach($organizationCategoryId);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Remove organization category interest.
+     */
+    public function removeOrganizationCategoryInterest(int $organizationCategoryId): bool
+    {
+        if ($this->isInterestedInOrganizationCategory($organizationCategoryId)) {
+            $this->organizationCategories()->detach($organizationCategoryId);
+            return true;
+        }
+        return false;
     }
 }
