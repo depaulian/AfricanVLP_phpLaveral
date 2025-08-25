@@ -115,6 +115,14 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('/{event}/duplicate', [EventController::class, 'duplicate'])->name('duplicate');
         Route::get('/stats', [EventController::class, 'stats'])->name('stats');
         Route::get('/organizations/{organization}', [EventController::class, 'byOrganization'])->name('by-organization');
+        
+        // UI routes rendering Blade views with real data (under /ui)
+        Route::get('/ui', [EventController::class, 'uiIndex'])->name('ui.index');
+        Route::get('/ui/create', [EventController::class, 'uiCreate'])->name('ui.create');
+        Route::get('/ui/{event}', [EventController::class, 'uiShow'])->name('ui.show');
+        Route::get('/ui/{event}/edit', [EventController::class, 'uiEdit'])->name('ui.edit');
+        Route::post('/ui', [EventController::class, 'uiStore'])->name('ui.store');
+        Route::put('/ui/{event}', [EventController::class, 'uiUpdate'])->name('ui.update');
     });
     
     // News Management
@@ -157,6 +165,14 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::post('/bulk-action', [BlogController::class, 'bulkAction'])->name('bulk-action');
         Route::post('/{blog}/duplicate', [BlogController::class, 'duplicate'])->name('duplicate');
         Route::get('/stats', [BlogController::class, 'stats'])->name('stats');
+        
+        // UI routes rendering Blade views with real data (under /ui)
+        Route::get('/ui', [BlogController::class, 'uiIndex'])->name('ui.index');
+        Route::get('/ui/create', [BlogController::class, 'uiCreate'])->name('ui.create');
+        Route::get('/ui/{blog}', [BlogController::class, 'uiShow'])->name('ui.show');
+        Route::get('/ui/{blog}/edit', [BlogController::class, 'uiEdit'])->name('ui.edit');
+        Route::post('/ui', [BlogController::class, 'uiStore'])->name('ui.store');
+        Route::put('/ui/{blog}', [BlogController::class, 'uiUpdate'])->name('ui.update');
     });
     
     // Opportunity Management
@@ -171,6 +187,14 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/stats', [OpportunityController::class, 'stats'])->name('stats');
         Route::get('/{opportunity}/applications', [OpportunityController::class, 'applications'])->name('applications');
         Route::put('/{opportunity}/applications/{application}/status', [OpportunityController::class, 'updateApplicationStatus'])->name('applications.update-status');
+        
+        // UI routes rendering Blade views with real data (under /ui)
+        Route::get('/ui', [OpportunityController::class, 'uiIndex'])->name('ui.index');
+        Route::get('/ui/create', [OpportunityController::class, 'uiCreate'])->name('ui.create');
+        Route::get('/ui/{opportunity}', [OpportunityController::class, 'uiShow'])->name('ui.show');
+        Route::get('/ui/{opportunity}/edit', [OpportunityController::class, 'uiEdit'])->name('ui.edit');
+        Route::post('/ui', [OpportunityController::class, 'uiStore'])->name('ui.store');
+        Route::put('/ui/{opportunity}', [OpportunityController::class, 'uiUpdate'])->name('ui.update');
     });
     
     // File Upload Management
