@@ -80,7 +80,9 @@ class BlogController extends Controller
         $blogs = $query->paginate($perPage)->withQueryString();
 
         // Get filter options
-        $authors = User::select('id', 'name')->orderBy('name')->get();
+        $authors = User::select('id', DB::raw("CONCAT(first_name, ' ', last_name) as name"))
+                        ->orderBy('name')
+                        ->get();
         $organizations = Organization::select('id', 'name')->where('status', 'active')->orderBy('name')->get();
         $categories = BlogCategory::active()->ordered()->get();
 
